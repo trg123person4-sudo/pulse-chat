@@ -420,7 +420,7 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
             <ReactMarkdown
               rehypePlugins={[rehypeSanitize]}
               components={{
-                code({ node, className, children, ...props }) {
+                code({ node: _node, className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || '');
                   const isInline = !match && !String(children).includes('\n');
                   if (isInline) {

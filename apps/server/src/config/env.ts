@@ -12,7 +12,8 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
   DATABASE_URL: z
     .string()
-    .default('file:./dev.db'),
+    .default('postgresql://postgres:postgrespassword@localhost:5432/chatdb?schema=public'),
+  GEMINI_API_KEY: z.string().optional(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   JWT_ACCESS_SECRET: z
     .string()

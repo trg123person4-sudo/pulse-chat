@@ -128,6 +128,7 @@ cp .env.example apps/server/.env
 | `S3_ACCESS_KEY` | `minioadmin` | S3 Access Key |
 | `S3_SECRET_KEY` | `minioadmin` | S3 Secret Key |
 | `S3_FORCE_PATH_STYLE` | `true` | Required for MinIO path-style bucket routing |
+| `GEMINI_API_KEY` | *(Required for AI)* | Google Gemini API key for Catch Up summaries, smart replies, translation, and tone check |
 
 ### 3. Database Migration & Seeding
 

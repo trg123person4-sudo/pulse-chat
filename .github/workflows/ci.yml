@@ -11,6 +11,20 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: chatdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
       redis:
         image: redis:7-alpine
         ports:
@@ -34,20 +48,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Type check
         run: npm run typecheck
 
       - name: Run Prisma Generate & Migrations
         working-directory: apps/server
         env:
-          DATABASE_URL: "file:./dev.db"
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/chatdb?schema=public
         run: |
           npx prisma generate
           npx prisma migrate deploy
 
       - name: Run Tests
         env:
-          DATABASE_URL: "file:./dev.db"
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/chatdb?schema=public
           REDIS_URL: redis://localhost:6379
           JWT_ACCESS_SECRET: c29tZXNlY3JldGFjY2Vzc2tleXZhbHVlMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM=
           JWT_REFRESH_SECRET: c29tZXNlY3JldHJlZnJlc2hrZXl2YWx1ZTEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz=

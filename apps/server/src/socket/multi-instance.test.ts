@@ -61,7 +61,7 @@ describe('Multi-Instance Socket.IO with Redis Adapter', () => {
   let clientBob: ClientSocket;
 
   const convId = 'conv_multi_123';
-  let messages: any[] = [];
+  const messages: any[] = [];
   const memberships = [
     { id: 'm1', conversationId: convId, userId: 'user_alice', role: 'OWNER' },
     { id: 'm2', conversationId: convId, userId: 'user_bob', role: 'MEMBER' },

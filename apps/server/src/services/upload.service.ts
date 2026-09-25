@@ -92,7 +92,7 @@ export class UploadService {
 
     // 2. Sniff magic numbers to determine true MIME type
     const sniffedType = await fileTypeFromBuffer(file.buffer);
-    let mimeType = sniffedType ? sniffedType.mime : file.mimetype || 'application/octet-stream';
+    const mimeType = sniffedType ? sniffedType.mime : file.mimetype || 'application/octet-stream';
 
     if (DANGEROUS_MIME_TYPES.has(mimeType)) {
       throw AppError.badRequest('File type rejected: dangerous executable content detected');
