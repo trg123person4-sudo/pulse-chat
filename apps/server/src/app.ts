@@ -110,7 +110,7 @@ export function createApp(): Express {
   // Rate Limiting
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: env.NODE_ENV === 'test' ? 1000 : 20,
+    max: env.NODE_ENV === 'production' ? 20 : 1000,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -124,7 +124,7 @@ export function createApp(): Express {
 
   const uploadLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: env.NODE_ENV === 'test' ? 1000 : 60,
+    max: env.NODE_ENV === 'production' ? 60 : 1000,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -138,7 +138,7 @@ export function createApp(): Express {
 
   const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: env.NODE_ENV === 'test' ? 10000 : 600,
+    max: env.NODE_ENV === 'production' ? 600 : 10000,
     standardHeaders: true,
     legacyHeaders: false,
     message: {

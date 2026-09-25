@@ -238,7 +238,7 @@ export const useChatStore = create<ChatState>()(
       if (updatedParent && updatedParent.id === parentId) {
         updatedParent = {
           ...updatedParent,
-          replyCount: (updatedParent.replyCount || 0) + (alreadyHas ? 0 : 1),
+          replyCount: Math.max((updatedParent.replyCount || 0) + (alreadyHas ? 0 : 1), updatedReplies.length, 1),
           lastReplyAt: reply.createdAt,
         };
       }
@@ -250,7 +250,7 @@ export const useChatStore = create<ChatState>()(
         if (m.id === parentId) {
           return {
             ...m,
-            replyCount: (m.replyCount || 0) + (alreadyHas ? 0 : 1),
+            replyCount: Math.max((m.replyCount || 0) + (alreadyHas ? 0 : 1), 1),
             lastReplyAt: reply.createdAt,
           };
         }
@@ -439,8 +439,8 @@ export const useChatStore = create<ChatState>()(
       ),
     })),
 
-  setMessages: (conversationId, messages) =>
-    set((state) => {
+  setMessages: (conversationId, messages) => {
+    return set((state) => {
       const pendingOutbox = (state.outbox || [])
         .filter(
           (o) =>
@@ -478,7 +478,8 @@ export const useChatStore = create<ChatState>()(
           [conversationId]: [...messages, ...pendingOutbox],
         },
       };
-    }),
+    });
+  },
 
   prependOlderMessages: (conversationId, olderMessages) =>
     set((state) => {
@@ -494,8 +495,8 @@ export const useChatStore = create<ChatState>()(
       };
     }),
 
-  addMessage: (message) =>
-    set((state) => {
+  addMessage: (message) => {
+    return set((state) => {
       const convId = message.conversationId;
       const current = state.messages[convId] || [];
 
@@ -514,6 +515,20 @@ export const useChatStore = create<ChatState>()(
         } else {
           updatedMessages = current;
         }
+      }
+
+      // If message is replying to another message, increment the parent's replyCount
+      if (message.replyToId) {
+        updatedMessages = updatedMessages.map((m) => {
+          if (m.id === message.replyToId) {
+            return {
+              ...m,
+              replyCount: (m.replyCount || 0) + 1,
+              lastReplyAt: message.createdAt,
+            };
+          }
+          return m;
+        });
       }
 
       const updatedConvs = state.conversations.map((c) => {
@@ -535,7 +550,8 @@ export const useChatStore = create<ChatState>()(
         },
         conversations: updatedConvs,
       };
-    }),
+    });
+  },
 
   updateMessage: (message) =>
     set((state) => {
@@ -568,8 +584,8 @@ export const useChatStore = create<ChatState>()(
       };
     }),
 
-  updateMessageStatus: (conversationId, clientMessageId, status, serverMessage) =>
-    set((state) => {
+  updateMessageStatus: (conversationId, clientMessageId, status, serverMessage) => {
+    return set((state) => {
       const current = state.messages[conversationId] || [];
       return {
         messages: {
@@ -585,7 +601,8 @@ export const useChatStore = create<ChatState>()(
           }),
         },
       };
-    }),
+    });
+  },
 
   updateReaction: (conversationId, messageId, emoji, userId, added) =>
     set((state) => {

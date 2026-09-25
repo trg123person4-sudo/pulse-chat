@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import { MessageDto } from '@realtime-chat/shared';
 import { Avatar } from '../common/Avatar.js';
+import { DropdownMenu } from '../ui/DropdownMenu.js';
 import { getUserColor, formatMessageTime, formatBytes, cn } from '../../lib/utils.js';
 import { useAuthStore } from '../../stores/auth-store.js';
 import { useChatStore } from '../../stores/chat-store.js';
@@ -28,6 +29,7 @@ import {
   Copy,
   Loader2,
   AlertTriangle,
+  MoreHorizontal,
 } from 'lucide-react';
 
 interface MessageItemProps {
@@ -49,15 +51,16 @@ function CodeBlock({ children, className }: { children: React.ReactNode; classNa
   };
 
   return (
-    <div className="relative group/code my-2 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 font-mono text-xs">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 text-[11px] text-slate-400">
+    <div className="relative group/code my-2 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900 font-mono text-xs max-w-full">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[11px] text-slate-400">
         <span className="font-semibold text-slate-300">
           {className?.replace('language-', '') || 'code'}
         </span>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+          aria-label="Copy code to clipboard"
+          className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
         >
           {copied ? (
             <>
@@ -72,7 +75,7 @@ function CodeBlock({ children, className }: { children: React.ReactNode; classNa
           )}
         </button>
       </div>
-      <pre className="p-3 overflow-x-auto text-slate-200">
+      <pre className="p-3 overflow-x-auto text-slate-200 scrollbar-thin">
         <code>{children}</code>
       </pre>
     </div>
@@ -170,7 +173,6 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
 
   const handleTranslate = async () => {
     if (translatedText || translationError) {
-      // Toggle off
       setTranslatedText(null);
       setTranslationError(null);
       return;
@@ -223,129 +225,129 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
       a.fileName.endsWith('.mp3'),
   );
 
+  // More menu items
+  const moreMenuItems = [
+    {
+      id: 'copy',
+      label: 'Copy Text',
+      icon: <Copy className="w-3.5 h-3.5" />,
+      onClick: () => navigator.clipboard.writeText(message.body),
+    },
+    {
+      id: 'pin',
+      label: isPinned ? 'Unpin Message' : 'Pin Message',
+      icon: <Pin className={cn('w-3.5 h-3.5', isPinned && 'fill-amber-500 text-amber-500')} />,
+      onClick: handlePin,
+    },
+    {
+      id: 'bookmark',
+      label: isSaved ? 'Remove Bookmark' : 'Bookmark Message',
+      icon: <Bookmark className={cn('w-3.5 h-3.5', isSaved && 'fill-indigo-500 text-indigo-500')} />,
+      onClick: handleSave,
+    },
+    {
+      id: 'translate',
+      label: isTranslating ? 'Translating...' : translatedText ? 'Hide Translation' : 'Translate Message',
+      icon: isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" /> : <Languages className="w-3.5 h-3.5" />,
+      onClick: handleTranslate,
+    },
+    ...(isAuthor
+      ? [
+          'divider' as const,
+          {
+            id: 'edit',
+            label: 'Edit Message',
+            icon: <Pencil className="w-3.5 h-3.5" />,
+            onClick: () => {
+              setIsEditing(true);
+              setEditText(message.body);
+            },
+          },
+          {
+            id: 'delete',
+            label: 'Delete Message',
+            icon: <Trash2 className="w-3.5 h-3.5" />,
+            destructive: true,
+            onClick: handleDelete,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div
       className={cn(
-        'group relative flex gap-3 px-4 py-1 hover:bg-slate-900/40 transition-colors',
+        'group relative flex gap-3 px-3 sm:px-4 py-1 transition-colors duration-150',
         isGrouped ? 'mt-0 pt-0.5' : 'mt-2 pt-1.5',
+        'hover:bg-slate-100/60 dark:hover:bg-slate-900/40',
         isPending && 'opacity-60',
-        isFailed && 'bg-rose-950/20 border-l-2 border-rose-500',
-        isPinned && 'bg-amber-950/10 border-l-2 border-amber-500/60',
+        isFailed && 'bg-rose-50 dark:bg-rose-950/20 border-l-2 border-rose-500',
+        isPinned && 'bg-amber-50/60 dark:bg-amber-950/10 border-l-2 border-amber-500/60',
       )}
     >
       {/* Pinned Indicator Header */}
       {isPinned && !isGrouped && (
-        <div className="absolute -top-3 left-14 flex items-center gap-1 text-[10px] font-semibold text-amber-400 select-none">
-          <Pin className="w-2.5 h-2.5 fill-amber-400" />
+        <div className="absolute -top-3 left-12 sm:left-14 flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 select-none">
+          <Pin className="w-2.5 h-2.5 fill-amber-500" />
           <span>Pinned</span>
         </div>
       )}
 
-      {/* Hover Action Bar */}
+      {/* Action Bar (Reachable via hover on desktop OR persistent trigger button on mobile/touch) */}
       {!isDeleted && !isPending && !isFailed && !isEditing && (
-        <div className="absolute -top-3.5 right-4 hidden group-hover:flex items-center gap-0.5 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl px-1.5 py-0.5 z-10 select-none">
+        <div className="absolute -top-3.5 right-3 sm:right-4 hidden group-hover:flex md:group-hover:flex items-center gap-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl shadow-lg px-1.5 py-0.5 z-20 select-none">
           {/* Quick Reaction Emojis */}
           {['👍', '❤️', '😂', '🎉', '🚀'].map((emoji) => (
             <button
               key={emoji}
+              type="button"
               onClick={() => handleReaction(emoji)}
+              aria-label={`React with ${emoji}`}
               title={`React with ${emoji}`}
-              className="px-1 py-0.5 text-xs hover:scale-125 transition-transform rounded hover:bg-slate-800"
+              className="px-1.5 py-1 text-xs hover:scale-125 transition-transform rounded hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               {emoji}
             </button>
           ))}
 
-          <div className="w-px h-3.5 bg-slate-700 mx-1" />
+          <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700 mx-1" />
 
-          {/* Reply in dedicated thread drawer */}
+          {/* Primary Action 1: Reply in thread */}
           <button
+            type="button"
             data-testid="reply-in-thread"
             onClick={() => openThread(message)}
+            aria-label="Reply in thread"
             title="Reply in thread"
-            className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded transition-colors"
+            className="p-1.5 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
           >
             <MessageSquare className="w-3.5 h-3.5" />
           </button>
 
-          {/* Quote Reply in Composer */}
+          {/* Primary Action 2: Quote Reply */}
           <button
+            type="button"
             onClick={() => setReplyingTo(message)}
+            aria-label="Quote reply in composer"
             title="Quote Reply"
-            className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+            className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
           >
             <Reply className="w-3.5 h-3.5" />
           </button>
 
-          {/* Pin Message Toggle */}
-          <button
-            onClick={handlePin}
-            title={isPinned ? 'Unpin message' : 'Pin message'}
-            className={cn(
-              'p-1 rounded transition-colors',
-              isPinned
-                ? 'text-amber-400 bg-amber-950/40 hover:bg-amber-900/60'
-                : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800',
-            )}
-          >
-            <Pin className={cn('w-3.5 h-3.5', isPinned && 'fill-amber-400')} />
-          </button>
-
-          {/* Bookmark / Saved */}
-          <button
-            onClick={handleSave}
-            title={isSaved ? 'Remove bookmark' : 'Bookmark message'}
-            className={cn(
-              'p-1 rounded transition-colors',
-              isSaved
-                ? 'text-indigo-400 bg-indigo-950/40 hover:bg-indigo-900/60'
-                : 'text-slate-400 hover:text-indigo-400 hover:bg-slate-800',
-            )}
-          >
-            <Bookmark className={cn('w-3.5 h-3.5', isSaved && 'fill-indigo-400')} />
-          </button>
-
-          {/* Real-time Translate */}
-          <button
-            onClick={handleTranslate}
-            title="Translate message"
-            className={cn(
-              'p-1 rounded transition-colors',
-              translatedText
-                ? 'text-indigo-400 bg-indigo-950/40'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800',
-            )}
-          >
-            {isTranslating ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-            ) : (
-              <Languages className="w-3.5 h-3.5" />
-            )}
-          </button>
-
-          {/* Edit & Delete for author */}
-          {isAuthor && (
-            <>
-              <div className="w-px h-3.5 bg-slate-700 mx-1" />
+          {/* Primary Action 3: More Options Menu */}
+          <DropdownMenu
+            trigger={
               <button
-                onClick={() => {
-                  setIsEditing(true);
-                  setEditText(message.body);
-                }}
-                title="Edit Message"
-                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                type="button"
+                aria-label="More message actions"
+                className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
               >
-                <Pencil className="w-3.5 h-3.5" />
+                <MoreHorizontal className="w-3.5 h-3.5" />
               </button>
-              <button
-                onClick={handleDelete}
-                title="Delete Message"
-                className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </>
-          )}
+            }
+            items={moreMenuItems}
+          />
         </div>
       )}
 
@@ -354,46 +356,46 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
         {!isGrouped ? (
           <Avatar name={senderName} src={message.sender?.avatarUrl} size="md" />
         ) : (
-          <span className="text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 select-none self-center">
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 select-none self-center">
             {formatMessageTime(message.createdAt)}
           </span>
         )}
       </div>
 
       {/* Right Column: Message Content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 overflow-hidden">
         {!isGrouped && (
           <div className="flex items-baseline gap-2 mb-0.5 select-none">
-            <span className={cn('text-xs font-semibold tracking-tight', nameColor)}>
+            <span className={cn('text-xs font-semibold tracking-tight truncate', nameColor)}>
               {senderName}
             </span>
-            <span className="text-[10px] text-slate-500">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
               {formatMessageTime(message.createdAt)}
             </span>
             {message.editedAt && !isDeleted && (
-              <span className="text-[10px] text-slate-500 italic">(edited)</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 italic shrink-0">(edited)</span>
             )}
             {isSaved && (
-              <span title="Bookmarked">
-                <Bookmark className="w-3 h-3 text-indigo-400 fill-indigo-400" />
+              <span title="Bookmarked" className="shrink-0">
+                <Bookmark className="w-3 h-3 text-indigo-500 fill-indigo-500" />
               </span>
             )}
           </div>
         )}
 
-        {/* Quoted Parent Reply (if reply) */}
+        {/* Quoted Parent Reply */}
         {message.replyTo && (
-          <div className="mb-1.5 flex items-center gap-2 text-xs text-slate-400 bg-slate-900/80 px-2.5 py-1 rounded-lg border-l-2 border-indigo-500 max-w-lg truncate">
-            <span className="font-semibold text-slate-300">
+          <div className="mb-1.5 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900/80 px-2.5 py-1 rounded-lg border-l-2 border-indigo-500 max-w-lg truncate">
+            <span className="font-semibold text-slate-700 dark:text-slate-300">
               @{message.replyTo.sender?.displayName || message.replyTo.sender?.username}:
             </span>
-            <span className="truncate text-slate-400">{message.replyTo.body}</span>
+            <span className="truncate">{message.replyTo.body}</span>
           </div>
         )}
 
         {/* Message Body or Inline Edit Mode */}
         {isDeleted ? (
-          <p className="text-xs text-slate-500 italic">This message was deleted</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 italic">This message was deleted</p>
         ) : isEditing ? (
           <div className="mt-1 space-y-1.5 max-w-2xl">
             <textarea
@@ -408,24 +410,24 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
                 }
               }}
               rows={2}
-              className="w-full rounded-lg border border-indigo-500/80 bg-slate-950 p-2 text-sm text-slate-100 outline-none select-text"
+              className="w-full rounded-lg border border-indigo-500 bg-white dark:bg-slate-950 p-2 text-sm text-slate-900 dark:text-slate-100 outline-none select-text"
             />
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">
                 Enter to save • Shift+Enter for newline • Esc to cancel
               </span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white"
+                  className="px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveEdit}
-                  className="px-2.5 py-1 rounded bg-indigo-600 text-white font-medium hover:bg-indigo-500"
+                  className="px-3 py-1 rounded bg-indigo-600 text-white font-medium hover:bg-indigo-500"
                 >
                   Save
                 </button>
@@ -433,7 +435,7 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
             </div>
           </div>
         ) : (
-          <div className="text-sm text-slate-200 leading-relaxed break-words select-text">
+          <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words break-all sm:break-normal select-text">
             <ReactMarkdown
               rehypePlugins={[rehypeSanitize]}
               components={{
@@ -443,7 +445,7 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
                   if (isInline) {
                     return (
                       <code
-                        className="px-1.5 py-0.5 rounded bg-slate-800 text-indigo-300 text-xs font-mono"
+                        className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-300 text-xs font-mono"
                         {...props}
                       >
                         {children}
@@ -458,14 +460,13 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
             </ReactMarkdown>
 
             {/* Translated Preview Accordion */}
-            {/* Translated Preview Accordion */}
             {translatedText && (
-              <div className="mt-2 p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-100 animate-in fade-in">
-                <div className="flex items-center justify-between text-[11px] text-indigo-300 font-semibold mb-1">
+              <div className="mt-2 p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-500/30 text-xs text-indigo-900 dark:text-indigo-100 animate-in fade-in">
+                <div className="flex items-center justify-between text-[11px] text-indigo-600 dark:text-indigo-300 font-semibold mb-1">
                   <div className="flex items-center gap-1.5">
                     <Languages className="w-3.5 h-3.5" />
                     <span>Translated from {detectedLanguage || 'auto'} to English</span>
-                    <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                       {translationSource === 'llm' ? '✨ Gemini AI' : 'Basic'}
                     </span>
                   </div>
@@ -475,26 +476,26 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
                       setTranslatedText(null);
                       setTranslationError(null);
                     }}
-                    className="text-slate-400 hover:text-white"
+                    className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
                   >
                     Hide
                   </button>
                 </div>
-                <p className="text-slate-200 leading-relaxed">{translatedText}</p>
+                <p className="text-slate-700 dark:text-slate-200 leading-relaxed">{translatedText}</p>
               </div>
             )}
 
             {/* Honest Translation Unavailable Error */}
             {translationError && (
-              <div className="mt-2 p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between animate-in fade-in">
+              <div className="mt-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between animate-in fade-in">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span>{translationError}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setTranslationError(null)}
-                  className="text-slate-400 hover:text-white text-xs ml-2 px-1"
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs ml-2 px-1"
                 >
                   ✕
                 </button>
@@ -516,7 +517,7 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
           />
         )}
 
-        {/* Non-Audio Attachments */}
+        {/* Attachments */}
         {message.attachments &&
           message.attachments.length > 0 &&
           !isDeleted &&
@@ -535,18 +536,18 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
                       return (
                         <div
                           key={att.id}
-                          className="group/img relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-md"
+                          className="group/img relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/60 shadow-sm"
                         >
                           <img
                             src={fileUrl}
                             alt={att.fileName}
                             loading="lazy"
                             onClick={() => window.open(fileUrl, '_blank', 'noopener,noreferrer')}
-                            className="max-h-64 w-auto object-cover rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                            className="max-h-64 w-auto max-w-full object-cover rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
                           />
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 flex items-center justify-between text-[11px] text-slate-200 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 flex items-center justify-between text-[11px] text-white opacity-0 group-hover/img:opacity-100 transition-opacity">
                             <span className="truncate mr-2">{att.fileName}</span>
-                            <span className="text-slate-400 shrink-0">
+                            <span className="text-slate-300 shrink-0">
                               {formatBytes(att.fileSize)}
                             </span>
                           </div>
@@ -570,17 +571,17 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
                       return (
                         <div
                           key={att.id}
-                          className="flex items-center justify-between p-2.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-900 hover:border-slate-700 transition-all group/file"
+                          className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all group/file shadow-sm"
                         >
-                          <div className="flex items-center gap-2.5 truncate">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-950/60 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                          <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                               <FileText className="w-4 h-4" />
                             </div>
                             <div className="truncate">
-                              <div className="text-xs font-medium text-slate-200 truncate group-hover/file:text-white">
+                              <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate group-hover/file:text-indigo-600 dark:group-hover/file:text-white">
                                 {att.fileName}
                               </div>
-                              <div className="text-[10px] text-slate-500">
+                              <div className="text-[10px] text-slate-400">
                                 {formatBytes(att.fileSize)}
                               </div>
                             </div>
@@ -591,8 +592,8 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
                               download={att.fileName}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="Download attachment"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                              aria-label={`Download ${att.fileName}`}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                             >
                               <Download className="w-4 h-4" />
                             </a>
@@ -611,14 +612,15 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
           <button
             type="button"
             onClick={() => openThread(message)}
-            className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-950/30 hover:bg-indigo-900/50 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all group/thread select-none shadow-sm"
+            aria-label={`${message.replyCount} replies in thread. Click to open thread panel.`}
+            className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-xs font-semibold transition-all select-none shadow-sm"
           >
-            <MessageSquare className="w-3.5 h-3.5 text-indigo-400 group-hover/thread:scale-110 transition-transform" />
+            <MessageSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
             <span>
               {message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}
             </span>
             {message.lastReplyAt && (
-              <span className="text-[10px] text-slate-400 font-normal">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
                 • Last reply {formatMessageTime(message.lastReplyAt)}
               </span>
             )}
@@ -633,12 +635,14 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
               return (
                 <button
                   key={r.emoji}
+                  type="button"
                   onClick={() => handleReaction(r.emoji)}
+                  aria-label={`React with ${r.emoji}, ${r.count} reactions`}
                   className={cn(
                     'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all select-none',
                     hasReacted
-                      ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200 font-semibold'
-                      : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:border-indigo-500 hover:text-white',
+                      ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-400 dark:border-indigo-500 text-indigo-700 dark:text-indigo-200 font-semibold'
+                      : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600',
                   )}
                 >
                   <span>{r.emoji}</span>
@@ -649,24 +653,25 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
           </div>
         )}
 
-        {/* Optimistic Status Indicators */}
+        {/* Delivery / Sending / Failed Status Indicators */}
         {isPending && (
-          <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500 select-none">
+          <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400 select-none">
             <Clock className="w-3 h-3 animate-spin" />
             <span>Sending...</span>
           </div>
         )}
 
         {isFailed && (
-          <div className="flex items-center gap-2 mt-1 text-xs text-rose-400 select-none">
+          <div className="flex items-center gap-2 mt-1 text-xs text-rose-500 select-none">
             <div className="flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5" />
-              <span>Failed to send</span>
+              <span>Couldn't send</span>
             </div>
             {onRetry && (
               <button
+                type="button"
                 onClick={() => onRetry(message)}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
               >
                 <RefreshCw className="w-3 h-3" />
                 Retry

@@ -80,15 +80,16 @@ export function AudioPlayer({ url, durationSeconds = 5, waveformPeaks }: AudioPl
   const progress = duration > 0 ? currentTime / duration : 0;
 
   return (
-    <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/60 rounded-xl px-3.5 py-2.5 max-w-sm w-full my-1.5 shadow-md select-none">
+    <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 max-w-sm w-full my-1.5 shadow-sm select-none">
       <audio ref={audioRef} src={url} preload="metadata" />
 
       {/* Play/Pause Button */}
       <button
         type="button"
         onClick={togglePlay}
-        className="w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white flex items-center justify-center shrink-0 shadow transition-all"
+        aria-label={isPlaying ? 'Pause voice message' : 'Play voice message'}
         title={isPlaying ? 'Pause' : 'Play voice message'}
+        className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white flex items-center justify-center shrink-0 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 touch-target"
       >
         {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
       </button>
@@ -96,7 +97,13 @@ export function AudioPlayer({ url, durationSeconds = 5, waveformPeaks }: AudioPl
       {/* Waveform Visualization */}
       <div className="flex-1 flex flex-col gap-1 min-w-0">
         <div
-          className="flex items-center gap-0.5 h-6 cursor-pointer"
+          role="slider"
+          aria-label="Audio progress"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(currentTime)}
+          tabIndex={0}
+          className="flex items-center gap-0.5 h-6 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 rounded"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const clickPos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -113,7 +120,7 @@ export function AudioPlayer({ url, durationSeconds = 5, waveformPeaks }: AudioPl
               <span
                 key={i}
                 className={`w-1 rounded-full transition-colors ${
-                  isPlayed ? 'bg-indigo-400' : 'bg-slate-700 hover:bg-slate-600'
+                  isPlayed ? 'bg-indigo-600 dark:bg-indigo-400' : 'bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600'
                 }`}
                 style={{ height: `${Math.round(height * 24)}px` }}
               />
@@ -122,7 +129,7 @@ export function AudioPlayer({ url, durationSeconds = 5, waveformPeaks }: AudioPl
         </div>
 
         {/* Timestamps */}
-        <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+        <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 font-mono">
           <span>{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
         </div>
@@ -132,7 +139,8 @@ export function AudioPlayer({ url, durationSeconds = 5, waveformPeaks }: AudioPl
       <button
         type="button"
         onClick={cycleSpeed}
-        className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors shrink-0"
+        aria-label={`Playback speed ${speed}x`}
+        className="px-2 py-1 text-[11px] font-bold rounded-md bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition-colors shrink-0 touch-target flex items-center justify-center"
         title="Playback speed"
       >
         {speed}x

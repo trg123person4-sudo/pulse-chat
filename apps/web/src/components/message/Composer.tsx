@@ -202,8 +202,8 @@ export function Composer({ conversationId }: ComposerProps) {
     api
       .get<{ conversationId: string; text: string }>(`/drafts/${conversationId}`)
       .then((res) => {
-        if (isMounted && res && typeof res.text === 'string') {
-          setText(res.text);
+        if (isMounted && res && res.text) {
+          setText((curr) => (curr ? curr : res.text));
         }
       })
       .catch(() => {});
@@ -828,11 +828,11 @@ export function Composer({ conversationId }: ComposerProps) {
   }
 
   return (
-    <div className="p-4 bg-slate-900/60 border-t border-slate-800 relative select-none">
+    <div className="p-2 sm:p-4 bg-slate-50/80 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 relative select-none shrink-0">
       {/* Live Typing Indicator */}
       <div className="h-5 px-1 mb-1">
         {typingText && (
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 italic animate-fade-in">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 italic animate-in fade-in">
             <div className="flex items-center gap-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
@@ -845,13 +845,13 @@ export function Composer({ conversationId }: ComposerProps) {
 
       {/* Contextual Smart Reply Chips */}
       {smartReplies.length > 0 && !text && !isRecordingVoice && (
-        <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none animate-in fade-in">
+        <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none animate-in fade-in max-w-full">
           <span
             className={cn(
-              'text-[10px] uppercase font-bold mr-1 flex items-center gap-1 px-1.5 py-0.5 rounded-full border',
+              'text-[10px] uppercase font-bold mr-1 flex items-center gap-1 px-1.5 py-0.5 rounded-full border shrink-0',
               smartRepliesSource === 'llm'
-                ? 'text-indigo-300 bg-indigo-950/40 border-indigo-500/30'
-                : 'text-slate-400 bg-slate-900 border-slate-700/60',
+                ? 'text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-500/30'
+                : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700/60',
             )}
             title={
               smartRepliesSource === 'llm'
@@ -870,7 +870,7 @@ export function Composer({ conversationId }: ComposerProps) {
                 setText(replyText);
                 textareaRef.current?.focus();
               }}
-              className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800/80 hover:bg-indigo-600 hover:text-white border border-slate-700/80 text-slate-300 transition-all shadow-sm active:scale-95 shrink-0"
+              className="px-2.5 py-1 rounded-full text-xs font-medium bg-white dark:bg-slate-800/80 hover:bg-indigo-600 hover:text-white border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 transition-all shadow-sm active:scale-95 shrink-0"
             >
               {replyText}
             </button>
@@ -880,8 +880,8 @@ export function Composer({ conversationId }: ComposerProps) {
 
       {/* Slash Commands Dropdown Menu */}
       {showSlashMenu && (
-        <div className="absolute bottom-full left-4 mb-2 w-80 rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl p-2 z-30 backdrop-blur-md animate-in slide-in-from-bottom-2">
-          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 mb-1">
+        <div className="absolute bottom-full left-2 sm:left-4 mb-2 w-72 sm:w-80 rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/95 shadow-2xl p-2 z-30 backdrop-blur-md animate-in slide-in-from-bottom-2">
+          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
             Slash Commands
           </div>
           <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin">
@@ -896,16 +896,16 @@ export function Composer({ conversationId }: ComposerProps) {
                     setShowSlashMenu(false);
                     textareaRef.current?.focus();
                   }}
-                  className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-indigo-600/20 hover:border-indigo-500/30 border border-transparent transition-all group"
+                  className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-indigo-50 dark:hover:bg-indigo-600/20 hover:border-indigo-200 dark:hover:border-indigo-500/30 border border-transparent transition-all group"
                 >
-                  <div className="p-1 rounded-lg bg-slate-800 group-hover:bg-indigo-600 text-indigo-400 group-hover:text-white transition-colors">
+                  <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 group-hover:bg-indigo-600 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition-colors">
                     <Icon className="w-3.5 h-3.5" />
                   </div>
                   <div className="truncate">
-                    <span className="text-xs font-bold text-white group-hover:text-indigo-200">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-200">
                       {cmd.command}
                     </span>
-                    <p className="text-[10px] text-slate-400 truncate">{cmd.description}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{cmd.description}</p>
                   </div>
                 </button>
               );
@@ -916,9 +916,9 @@ export function Composer({ conversationId }: ComposerProps) {
 
       {/* Emoji Picker Popover */}
       {showEmojiPicker && (
-        <div className="absolute bottom-full left-16 mb-2 w-72 rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl p-3 z-30 backdrop-blur-md animate-in slide-in-from-bottom-2 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <div className="absolute bottom-full left-2 sm:left-16 mb-2 w-72 rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/95 shadow-2xl p-3 z-30 backdrop-blur-md animate-in slide-in-from-bottom-2 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Select Emoji
             </span>
             <button
@@ -927,7 +927,7 @@ export function Composer({ conversationId }: ComposerProps) {
                 setShowEmojiPicker(false);
                 setShowUploadEmojiModal(true);
               }}
-              className="text-[10px] flex items-center gap-1 font-semibold text-indigo-400 hover:text-indigo-300"
+              className="text-[10px] flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               <Plus className="w-3 h-3" /> Custom
             </button>
@@ -935,7 +935,7 @@ export function Composer({ conversationId }: ComposerProps) {
 
           {/* Standard Emojis */}
           <div>
-            <div className="text-[9px] uppercase font-semibold text-slate-500 mb-1">Standard</div>
+            <div className="text-[9px] uppercase font-semibold text-slate-400 dark:text-slate-500 mb-1">Standard</div>
             <div className="grid grid-cols-6 gap-1 text-base">
               {['😀', '😂', '😍', '🎉', '🚀', '🔥', '✨', '👏', '👀', '💯', '👍', '❤️', '💡', '✅', '🥳', '😎', '🙏', '🙌'].map((emoji) => (
                 <button
@@ -946,7 +946,7 @@ export function Composer({ conversationId }: ComposerProps) {
                     setShowEmojiPicker(false);
                     textareaRef.current?.focus();
                   }}
-                  className="p-1 hover:bg-slate-800 rounded text-center hover:scale-125 transition-transform"
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-center hover:scale-125 transition-transform"
                 >
                   {emoji}
                 </button>
@@ -957,7 +957,7 @@ export function Composer({ conversationId }: ComposerProps) {
           {/* Custom Emojis */}
           {customEmojis.length > 0 && (
             <div>
-              <div className="text-[9px] uppercase font-semibold text-slate-500 mb-1">Custom Emojis</div>
+              <div className="text-[9px] uppercase font-semibold text-slate-400 dark:text-slate-500 mb-1">Custom Emojis</div>
               <div className="grid grid-cols-6 gap-1 max-h-28 overflow-y-auto scrollbar-thin">
                 {customEmojis.map((ce) => (
                   <button
@@ -969,7 +969,7 @@ export function Composer({ conversationId }: ComposerProps) {
                       textareaRef.current?.focus();
                     }}
                     title={`:${ce.shortcode}:`}
-                    className="p-1 hover:bg-slate-800 rounded flex items-center justify-center hover:scale-125 transition-transform"
+                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded flex items-center justify-center hover:scale-125 transition-transform"
                   >
                     <img src={ce.imageUrl} alt={ce.shortcode} className="w-5 h-5 object-contain" />
                   </button>
@@ -982,16 +982,16 @@ export function Composer({ conversationId }: ComposerProps) {
 
       {/* Upload Custom Emoji Modal */}
       {showUploadEmojiModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
                 Upload Custom Emoji
               </span>
               <button
                 type="button"
                 onClick={() => setShowUploadEmojiModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -999,25 +999,25 @@ export function Composer({ conversationId }: ComposerProps) {
 
             <form onSubmit={handleUploadEmoji} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-400 mb-1">
                   Emoji Name (e.g. party_parrot)
                 </label>
-                <div className="flex items-center rounded-xl bg-slate-950 border border-slate-800 px-3 py-1.5 focus-within:border-indigo-500">
-                  <span className="text-slate-500 text-xs mr-1">:</span>
+                <div className="flex items-center rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-1.5 focus-within:border-indigo-500">
+                  <span className="text-slate-400 text-xs mr-1">:</span>
                   <input
                     type="text"
                     value={newEmojiName}
                     onChange={(e) => setNewEmojiName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                     placeholder="custom_name"
                     required
-                    className="w-full bg-transparent text-xs text-white outline-none"
+                    className="w-full bg-transparent text-xs text-slate-900 dark:text-white outline-none"
                   />
-                  <span className="text-slate-500 text-xs ml-1">:</span>
+                  <span className="text-slate-400 text-xs ml-1">:</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-400 mb-1">
                   Image File (PNG, GIF, JPEG)
                 </label>
                 <input
@@ -1025,15 +1025,15 @@ export function Composer({ conversationId }: ComposerProps) {
                   type="file"
                   accept="image/png,image/gif,image/jpeg,image/webp"
                   required
-                  className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                  className="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 cursor-pointer"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowUploadEmojiModal(false)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold"
                 >
                   Cancel
                 </button>
@@ -1057,20 +1057,20 @@ export function Composer({ conversationId }: ComposerProps) {
 
       {/* Gentle Pre-Send Tone Check Warning Banner */}
       {toneWarning && (
-        <div className="mb-2 p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/60 text-amber-200 text-xs flex items-start justify-between gap-2 animate-in fade-in">
+        <div className="mb-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs flex items-start justify-between gap-2 animate-in fade-in">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <div>
               <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="font-semibold text-amber-300">Tone Warning:</span>
-                <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="font-semibold text-amber-900 dark:text-amber-300">Tone Warning:</span>
+                <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
                   {toneWarning.source === 'llm' ? '✨ Gemini AI' : 'Basic Rule'}
                 </span>
               </div>
               <span>{toneWarning.warning}</span>
               {toneWarning.suggestion && (
                 <div className="mt-1 flex items-center gap-2">
-                  <span className="text-[11px] text-slate-300">Suggestion:</span>
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300">Suggestion:</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -1079,7 +1079,7 @@ export function Composer({ conversationId }: ComposerProps) {
                         setToneWarning(null);
                       }
                     }}
-                    className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 underline"
+                    className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:underline"
                   >
                     "{toneWarning.suggestion}"
                   </button>
@@ -1090,7 +1090,7 @@ export function Composer({ conversationId }: ComposerProps) {
           <button
             type="button"
             onClick={() => setToneWarning(null)}
-            className="p-0.5 text-amber-400 hover:text-white rounded"
+            className="p-1 text-amber-600 dark:text-amber-400 hover:text-amber-900 rounded"
             title="Dismiss tone check"
           >
             <X className="w-3.5 h-3.5" />
@@ -1100,12 +1100,12 @@ export function Composer({ conversationId }: ComposerProps) {
 
       {/* Upload Error Banner */}
       {uploadError && (
-        <div className="mb-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-800/50 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+        <div className="mb-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
           <span>{uploadError}</span>
           <button
             type="button"
             onClick={() => setUploadError(null)}
-            className="p-0.5 text-rose-400 hover:text-white"
+            className="p-0.5 text-rose-500 hover:text-rose-800"
           >
             <X className="w-3 h-3" />
           </button>
@@ -1114,18 +1114,18 @@ export function Composer({ conversationId }: ComposerProps) {
 
       {/* Quote Reply Preview Bar */}
       {replyingTo && (
-        <div className="mb-2 flex items-center justify-between bg-slate-950/90 border border-slate-800 border-l-4 border-l-indigo-500 px-3 py-1.5 rounded-lg text-xs">
-          <div className="flex items-center gap-2 truncate text-slate-300">
-            <CornerDownRight className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-            <span className="font-semibold text-white">
+        <div className="mb-2 flex items-center justify-between bg-slate-100 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 border-l-4 border-l-indigo-500 px-3 py-1.5 rounded-lg text-xs">
+          <div className="flex items-center gap-2 truncate text-slate-700 dark:text-slate-300">
+            <CornerDownRight className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+            <span className="font-semibold text-slate-900 dark:text-white">
               Replying to @{replyingTo.sender?.displayName || replyingTo.sender?.username}:
             </span>
-            <span className="truncate text-slate-400">{replyingTo.body}</span>
+            <span className="truncate text-slate-500 dark:text-slate-400">{replyingTo.body}</span>
           </div>
           <button
             type="button"
             onClick={() => setReplyingTo(null)}
-            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 ml-2 shrink-0"
+            className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 ml-2 shrink-0"
             title="Cancel reply"
           >
             <X className="w-3.5 h-3.5" />
@@ -1139,17 +1139,17 @@ export function Composer({ conversationId }: ComposerProps) {
           {pendingAttachments.map((att) => (
             <div
               key={att.id}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-200 shadow-sm"
             >
-              <FileText className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-              <span className="max-w-xs truncate font-medium">{att.fileName}</span>
-              <span className="text-[10px] text-slate-500">
+              <FileText className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+              <span className="max-w-[140px] sm:max-w-xs truncate font-medium">{att.fileName}</span>
+              <span className="text-[10px] text-slate-400">
                 ({Math.round(att.fileSize / 1024)} KB)
               </span>
               <button
                 type="button"
                 onClick={() => removeAttachment(att.id)}
-                className="p-0.5 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 ml-1"
+                className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 ml-1"
                 title="Remove attachment"
               >
                 <X className="w-3 h-3" />
@@ -1166,7 +1166,7 @@ export function Composer({ conversationId }: ComposerProps) {
           onCancel={() => setIsRecordingVoice(false)}
         />
       ) : (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-2.5 shadow-lg focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+        <div className="rounded-2xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950/80 p-2 sm:p-2.5 shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
           <textarea
             ref={textareaRef}
             value={text}
@@ -1174,25 +1174,27 @@ export function Composer({ conversationId }: ComposerProps) {
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder="Type a message or '/' for commands (/poll, /catchup)..."
+            aria-label="Type a message"
             rows={1}
             maxLength={APP_CONSTANTS.MESSAGE_MAX_LENGTH + 50}
-            className="w-full resize-none bg-transparent px-2 text-sm text-slate-100 placeholder-slate-500 outline-none max-h-44 scrollbar-thin select-text"
+            className="w-full resize-none bg-transparent px-1.5 sm:px-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none max-h-44 scrollbar-thin select-text"
           />
 
           {/* Hidden File Input */}
           <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
 
-          <div className="flex items-center justify-between pt-2 px-1 border-t border-slate-900/80">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between pt-1.5 sm:pt-2 px-1 border-t border-slate-100 dark:border-slate-900/80">
+            <div className="flex items-center gap-0.5 sm:gap-1">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
+                aria-label="Add attachment"
                 title="Add attachment (max 25MB)"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors touch-target flex items-center justify-center"
               >
                 {isUploading ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
                 ) : (
                   <Paperclip className="w-4 h-4" />
                 )}
@@ -1202,8 +1204,9 @@ export function Composer({ conversationId }: ComposerProps) {
               <button
                 type="button"
                 onClick={() => setIsRecordingVoice(true)}
+                aria-label="Record voice message"
                 title="Record voice message"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors touch-target flex items-center justify-center"
               >
                 <Mic className="w-4 h-4" />
               </button>
@@ -1211,11 +1214,12 @@ export function Composer({ conversationId }: ComposerProps) {
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                aria-label="Add emoji"
                 title="Add emoji"
-                className={`p-1.5 rounded-lg transition-colors ${
+                className={`p-2 rounded-lg transition-colors touch-target flex items-center justify-center ${
                   showEmojiPicker
-                    ? 'text-indigo-400 bg-indigo-950/60'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <Smile className="w-4 h-4" />
@@ -1224,25 +1228,26 @@ export function Composer({ conversationId }: ComposerProps) {
               <button
                 type="button"
                 onClick={() => setShowSlashMenu(!showSlashMenu)}
+                aria-label="Slash commands"
                 title="Slash commands (/poll, /catchup)"
-                className={`p-1.5 rounded-lg transition-colors ${
+                className={`p-2 rounded-lg transition-colors touch-target flex items-center justify-center ${
                   showSlashMenu
-                    ? 'text-indigo-400 bg-indigo-950/60'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <span
-                className={`text-[10px] ${
+                className={`text-[10px] hidden xs:inline ${
                   isOverLimit
-                    ? 'text-rose-400 font-bold'
+                    ? 'text-rose-500 font-bold'
                     : text.length > 3500
-                      ? 'text-amber-400'
-                      : 'text-slate-500'
+                      ? 'text-amber-500'
+                      : 'text-slate-400'
                 }`}
               >
                 {text.length} / {APP_CONSTANTS.MESSAGE_MAX_LENGTH}
@@ -1254,7 +1259,8 @@ export function Composer({ conversationId }: ComposerProps) {
                 disabled={
                   (!text.trim() && pendingAttachments.length === 0) || isOverLimit || isUploading
                 }
-                className="p-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-30 transition-all shadow-md shadow-indigo-600/30"
+                aria-label="Send message"
+                className="p-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-30 transition-all shadow-md shadow-indigo-600/20 touch-target flex items-center justify-center"
               >
                 <Send className="w-4 h-4" />
               </button>

@@ -29,6 +29,20 @@ export function createInMemoryPrisma() {
         continue;
       }
 
+      // Check if this key represents a Prisma compound unique index (e.g. senderId_clientMessageId, userId_conversationId)
+      if (typeof val === 'object' && val !== null && !(val instanceof Date)) {
+        const filterKeys = ['equals', 'not', 'in', 'contains', 'lt', 'lte', 'gt', 'gte', 'some'];
+        const hasFilterKey = Object.keys(val).some((k) => filterKeys.includes(k));
+
+        if (!hasFilterKey) {
+          // Compound unique constraint object (e.g. { senderId, clientMessageId })
+          for (const [subKey, subVal] of Object.entries(val)) {
+            if (item[subKey] !== subVal) return false;
+          }
+          continue;
+        }
+      }
+
       const itemVal = item[key];
       if (val === null || val === undefined) {
         if (itemVal !== val) return false;

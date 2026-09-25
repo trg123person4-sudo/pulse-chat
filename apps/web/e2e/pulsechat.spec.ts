@@ -71,6 +71,10 @@ test.describe('PulseChat Full E2E Verification', () => {
     await expect(pageA.getByText(message1Text)).toBeVisible({ timeout: 10000 });
 
     // Verify User B receives and sees the message in real-time without reloading
+    const newMsgBadgeB = pageB.locator('button', { hasText: /new message/i });
+    if (await newMsgBadgeB.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await newMsgBadgeB.click();
+    }
     await expect(pageB.getByText(message1Text)).toBeVisible({ timeout: 10000 });
 
     // --- Scenario 2: Reply into a thread and confirm it appears in the thread panel ---
@@ -95,7 +99,7 @@ test.describe('PulseChat Full E2E Verification', () => {
     await expect(threadPanel.getByText(threadReplyText)).toBeVisible({ timeout: 10000 });
 
     // Confirm parent message shows thread replies indicator
-    await expect(pageB.locator('button', { hasText: /reply/i })).toBeVisible({ timeout: 10000 });
+    await expect(msgElementB.locator('button', { hasText: /reply/i })).toBeVisible({ timeout: 10000 });
 
     // --- Scenario 3: Compose while offline and confirm delivery after reconnecting (Fix #12) ---
     // User A goes offline
@@ -127,8 +131,8 @@ test.describe('PulseChat Full E2E Verification', () => {
     await pageA.waitForTimeout(3500);
 
     // Verify the scheduled message appears in the chat for both users
-    await expect(pageA.getByText(scheduledText)).toBeVisible({ timeout: 10000 });
-    await expect(pageB.getByText(scheduledText)).toBeVisible({ timeout: 10000 });
+    await expect(pageA.getByText(scheduledText, { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(pageB.getByText(scheduledText, { exact: true })).toBeVisible({ timeout: 10000 });
 
     // Cleanup contexts
     await contextA.close();

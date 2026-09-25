@@ -12,17 +12,17 @@ export function ConnectionBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 px-4 py-1.5 text-xs font-medium flex items-center justify-center gap-2 transition-all duration-300 backdrop-blur-sm"
+      className="bg-amber-500/15 border-b border-amber-500/30 text-amber-800 dark:text-amber-300 px-4 py-2 text-xs font-medium flex items-center justify-center gap-2 transition-all duration-300 backdrop-blur-sm shrink-0"
     >
       {connectionStatus === 'reconnecting' ? (
         <>
-          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400" />
           <span>Connection interrupted. Reconnecting to PulseChat...</span>
         </>
       ) : (
         <>
-          <WifiOff className="w-3.5 h-3.5 text-rose-400" />
-          <span className="text-rose-300">You are currently offline. Changes will sync once reconnected.</span>
+          <WifiOff className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+          <span className="text-rose-700 dark:text-rose-300">You are currently offline. Messages will sync automatically once reconnected.</span>
         </>
       )}
     </div>

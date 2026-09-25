@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useChatStore } from '../../stores/chat-store.js';
 import { useAuthStore } from '../../stores/auth-store.js';
 import { getSocket } from '../../lib/socket-client.js';
@@ -6,8 +6,10 @@ import { api } from '../../lib/api-client.js';
 import { soundService } from '../../lib/sound-service.js';
 import { Avatar } from '../common/Avatar.js';
 import { getUserColor, formatMessageTime } from '../../lib/utils.js';
+import { ThreadSkeleton } from '../ui/Skeleton.js';
+import { EmptyState } from '../ui/EmptyState.js';
 import { MessageDto } from '@realtime-chat/shared';
-import { X, Send, MessageSquare, Loader2 } from 'lucide-react';
+import { X, Send, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 
@@ -16,7 +18,6 @@ export function ThreadPanel() {
     activeThreadMessage,
     closeThread,
     threadReplies,
-    setThreadReplies,
     addThreadReply,
   } = useChatStore();
   const { user } = useAuthStore();
@@ -43,7 +44,7 @@ export function ThreadPanel() {
             : Array.isArray(res?.replies)
             ? res.replies
             : [];
-          setThreadReplies(list);
+          useChatStore.getState().setThreadReplies(list);
           setIsLoading(false);
         }
       })
@@ -55,7 +56,7 @@ export function ThreadPanel() {
     return () => {
       isMounted = false;
     };
-  }, [activeThreadMessage?.id, activeThreadMessage?.conversationId, setThreadReplies]);
+  }, [activeThreadMessage?.id, activeThreadMessage?.conversationId]);
 
   // Auto-scroll to bottom of thread
   useEffect(() => {
@@ -134,21 +135,25 @@ export function ThreadPanel() {
   return (
     <aside
       data-testid="thread-panel"
-      className="w-80 sm:w-96 flex flex-col h-full bg-slate-900/95 border-l border-slate-800 shadow-2xl z-20 shrink-0 select-none animate-in slide-in-from-right duration-200"
+      role="complementary"
+      aria-label="Thread replies"
+      className="fixed inset-y-0 right-0 z-40 w-full sm:w-96 md:static flex flex-col h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl md:shadow-none shrink-0 select-none animate-in slide-in-from-right duration-200"
     >
       {/* Header */}
-      <div className="h-14 px-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+      <div className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-950/40 shrink-0">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-indigo-400" />
-          <h3 className="text-sm font-bold text-white tracking-tight">Thread</h3>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold">
+          <MessageSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Thread</h3>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
             {threadReplies.length} {threadReplies.length === 1 ? 'reply' : 'replies'}
           </span>
         </div>
         <button
+          type="button"
           onClick={closeThread}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          aria-label="Close thread panel"
           title="Close Thread"
+          className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 touch-target"
         >
           <X className="w-4 h-4" />
         </button>
@@ -157,17 +162,17 @@ export function ThreadPanel() {
       {/* Thread Content Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
         {/* Root Message Card */}
-        <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 shadow-md">
+        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-2.5 mb-2">
             <Avatar name={rootAuthor} src={activeThreadMessage.sender?.avatarUrl} size="sm" />
-            <div className="truncate">
+            <div className="truncate min-w-0">
               <span className={`text-xs font-semibold ${rootColor}`}>{rootAuthor}</span>
               <div className="text-[10px] text-slate-500">
                 {formatMessageTime(activeThreadMessage.createdAt)}
               </div>
             </div>
           </div>
-          <div className="text-xs text-slate-200 leading-relaxed break-words prose prose-invert prose-xs max-w-none">
+          <div className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed break-words select-text">
             <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
               {activeThreadMessage.body}
             </ReactMarkdown>
@@ -177,26 +182,22 @@ export function ThreadPanel() {
         {/* Divider with replies count */}
         <div className="relative flex items-center justify-center my-3">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-800" />
+            <div className="w-full border-t border-slate-200 dark:border-slate-800" />
           </div>
-          <span className="relative bg-slate-900 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+          <span className="relative bg-white dark:bg-slate-900 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             Replies
           </span>
         </div>
 
-        {/* Loading Spinner */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-6 text-slate-500">
-            <Loader2 className="w-5 h-5 animate-spin text-indigo-400 mr-2" />
-            <span className="text-xs">Loading replies...</span>
-          </div>
-        )}
+        {/* Loading Skeleton */}
+        {isLoading && <ThreadSkeleton />}
 
         {/* Empty State */}
         {!isLoading && threadReplies.length === 0 && (
-          <div className="text-center py-8 text-xs text-slate-500">
-            No replies in this thread yet. Start the conversation!
-          </div>
+          <EmptyState
+            title="No replies yet"
+            description="Start the thread discussion by sending a reply below."
+          />
         )}
 
         {/* Thread Replies List */}
@@ -208,7 +209,7 @@ export function ThreadPanel() {
             return (
               <div
                 key={reply.id}
-                className="flex gap-2.5 group p-2 rounded-xl hover:bg-slate-800/40 transition-colors"
+                className="flex gap-2.5 group p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors"
               >
                 <Avatar name={author} src={reply.sender?.avatarUrl} size="sm" />
                 <div className="flex-1 min-w-0">
@@ -218,7 +219,7 @@ export function ThreadPanel() {
                       {formatMessageTime(reply.createdAt)}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-200 leading-relaxed break-words select-text">
+                  <div className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed break-words select-text">
                     <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
                       {reply.body}
                     </ReactMarkdown>
@@ -232,23 +233,25 @@ export function ThreadPanel() {
       </div>
 
       {/* Thread Composer */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/70">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-2 shadow-inner focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 shrink-0">
+        <div className="rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-2 shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Reply in thread..."
+            aria-label="Reply in thread"
             rows={2}
-            className="w-full resize-none bg-transparent px-2 text-xs text-slate-100 placeholder-slate-500 outline-none max-h-32 scrollbar-thin select-text"
+            className="w-full resize-none bg-transparent px-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none max-h-32 scrollbar-thin select-text"
           />
-          <div className="flex items-center justify-between pt-1.5 px-1 border-t border-slate-800/60">
+          <div className="flex items-center justify-between pt-1.5 px-1 border-t border-slate-200 dark:border-slate-800/60">
             <span className="text-[10px] text-slate-500">Enter to reply</span>
             <button
               type="button"
               onClick={handleSend}
               disabled={!text.trim()}
-              className="p-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-30 transition-all shadow"
+              aria-label="Send thread reply"
+              className="p-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 transition-all shadow touch-target flex items-center justify-center"
             >
               <Send className="w-3.5 h-3.5" />
             </button>

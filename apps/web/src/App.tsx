@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAuthStore } from './stores/auth-store.js';
 import { useChatStore } from './stores/chat-store.js';
+import { useThemeStore } from './stores/theme-store.js';
 import { useSocket } from './hooks/useSocket.js';
 import { api } from './lib/api-client.js';
 import { getSocket } from './lib/socket-client.js';
@@ -20,6 +21,7 @@ import { ConversationDto } from '@realtime-chat/shared';
 
 export function App() {
   const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
+  const { initializeTheme } = useThemeStore();
   const {
     setConversations,
     conversations,
@@ -35,10 +37,11 @@ export function App() {
     confettiTriggerKey,
   } = useChatStore();
 
-  // 1. Check session authentication on initial mount
+  // 1. Initialize Theme & Session Auth on initial mount
   useEffect(() => {
+    initializeTheme();
     initializeAuth();
-  }, [initializeAuth]);
+  }, [initializeTheme, initializeAuth]);
 
   // 2. Connect Socket.IO listeners
   useSocket();
@@ -113,12 +116,12 @@ export function App() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-950 text-white">
+      <div className="flex h-screen h-[100dvh] w-full items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-xl animate-pulse">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-xl text-white shadow-lg shadow-indigo-500/30 animate-pulse">
             ⚡
           </div>
-          <span className="text-xs text-slate-400 font-medium">Connecting to PulseChat...</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Connecting to PulseChat...</span>
         </div>
       </div>
     );
@@ -129,7 +132,7 @@ export function App() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-950 text-slate-100 antialiased font-sans">
+    <div className="flex h-screen h-[100dvh] w-full overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased font-sans">
       {/* Celebration Confetti Canvas */}
       <ConfettiEffect triggerKey={confettiTriggerKey} />
 
@@ -140,35 +143,35 @@ export function App() {
 
       {/* Mobile Slide-in Drawer */}
       {isMobileDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex md:hidden" role="dialog" aria-modal="true">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
             onClick={() => setMobileDrawerOpen(false)}
           />
-          <div className="relative z-10 w-72 h-full shadow-2xl">
+          <div className="relative z-10 w-[280px] max-w-[85vw] h-full shadow-2xl bg-white dark:bg-slate-950 animate-in slide-in-from-left duration-200">
             <Sidebar />
           </div>
         </div>
       )}
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col h-full min-w-0 bg-slate-950">
+      <main className="flex-1 flex flex-col h-full min-w-0 bg-white dark:bg-slate-950 overflow-hidden relative">
         <ConnectionBanner />
         <ChatHeader />
 
         {activeConversationId ? (
-          <>
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <MessageList conversationId={activeConversationId} />
             <Composer conversationId={activeConversationId} />
-          </>
+          </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
+          <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm p-4 text-center">
             Select a channel or direct message from the sidebar to begin.
           </div>
         )}
       </main>
 
-      {/* Dedicated Side-Panel Thread Drawer */}
+      {/* Dedicated Thread Panel */}
       {activeThreadMessage && <ThreadPanel />}
 
       {/* Right Details / Members Panel */}
