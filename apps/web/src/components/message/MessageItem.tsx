@@ -27,6 +27,7 @@ import {
   Check,
   Copy,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface MessageItemProps {
@@ -86,6 +87,8 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [translationSource, setTranslationSource] = useState<'llm' | 'unavailable' | null>(null);
 
   const { user } = useAuthStore();
   const {
@@ -166,25 +169,38 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
   };
 
   const handleTranslate = async () => {
-    if (translatedText) {
+    if (translatedText || translationError) {
       // Toggle off
       setTranslatedText(null);
+      setTranslationError(null);
       return;
     }
 
     setIsTranslating(true);
+    setTranslationError(null);
     try {
-      const res = await api.post<{ translatedText: string; detectedLanguage: string }>(
-        '/ai/translate',
-        {
-          text: message.body,
-          targetLanguage: 'en',
-        },
-      );
-      setTranslatedText(res.translatedText);
-      setDetectedLanguage(res.detectedLanguage);
-    } catch (err) {
-      console.error('Translation failed', err);
+      const res = await api.post<{
+        translatedText: string | null;
+        detectedLanguage: string;
+        source: 'llm' | 'unavailable';
+      }>('/ai/translate', {
+        text: message.body,
+        targetLanguage: 'en',
+      });
+      if (res.source === 'unavailable' || !res.translatedText) {
+        setTranslationError('Translation unavailable (Gemini AI service offline or unconfigured)');
+        setTranslatedText(null);
+        setTranslationSource('unavailable');
+      } else {
+        setTranslatedText(res.translatedText);
+        setDetectedLanguage(res.detectedLanguage || 'auto');
+        setTranslationSource('llm');
+        setTranslationError(null);
+      }
+    } catch (err: any) {
+      setTranslationError(err.message || 'Translation unavailable');
+      setTranslatedText(null);
+      setTranslationSource('unavailable');
     } finally {
       setIsTranslating(false);
     }
@@ -441,22 +457,46 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
             </ReactMarkdown>
 
             {/* Translated Preview Accordion */}
+            {/* Translated Preview Accordion */}
             {translatedText && (
               <div className="mt-2 p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-100 animate-in fade-in">
                 <div className="flex items-center justify-between text-[11px] text-indigo-300 font-semibold mb-1">
                   <div className="flex items-center gap-1.5">
                     <Languages className="w-3.5 h-3.5" />
-                    <span>Translated from {detectedLanguage || 'auto'} to English:</span>
+                    <span>Translated from {detectedLanguage || 'auto'} to English</span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {translationSource === 'llm' ? '✨ Gemini AI' : 'Basic'}
+                    </span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setTranslatedText(null)}
+                    onClick={() => {
+                      setTranslatedText(null);
+                      setTranslationError(null);
+                    }}
                     className="text-slate-400 hover:text-white"
                   >
                     Hide
                   </button>
                 </div>
                 <p className="text-slate-200 leading-relaxed">{translatedText}</p>
+              </div>
+            )}
+
+            {/* Honest Translation Unavailable Error */}
+            {translationError && (
+              <div className="mt-2 p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>{translationError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTranslationError(null)}
+                  className="text-slate-400 hover:text-white text-xs ml-2 px-1"
+                >
+                  ✕
+                </button>
               </div>
             )}
           </div>

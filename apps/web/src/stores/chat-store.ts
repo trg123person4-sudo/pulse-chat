@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { ConversationDto, MessageDto, MembershipDto, PollDto } from '@realtime-chat/shared';
 import { getSocket } from '../lib/socket-client.js';
 
@@ -111,7 +112,9 @@ interface ChatState {
   ) => void;
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>()(
+  persist(
+    (set, get) => ({
   conversations: [],
   activeConversationId: null,
   messages: {},
@@ -260,7 +263,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })),
 
   flushOutbox: () => {
-    const { outbox, updateMessageStatus, removeOutbox } = get();
+    const { outbox, updateMessageStatus, removeOutbox, addMessage } = get();
     if (outbox.length === 0) return;
 
     const socket = getSocket();
@@ -282,6 +285,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
         (res) => {
           if (res.ok && res.data) {
+            addMessage(res.data);
             updateMessageStatus(item.conversationId, item.clientMessageId, 'sent', res.data);
             removeOutbox(item.clientMessageId);
           } else {
@@ -414,12 +418,45 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })),
 
   setMessages: (conversationId, messages) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [conversationId]: messages,
-      },
-    })),
+    set((state) => {
+      const pendingOutbox = (state.outbox || [])
+        .filter(
+          (o) =>
+            o.conversationId === conversationId &&
+            !messages.some((m) => m.clientMessageId === o.clientMessageId),
+        )
+        .map((o) => ({
+          id: `optimistic_${o.clientMessageId}`,
+          conversationId: o.conversationId,
+          senderId: '',
+          sender: {
+            id: '',
+            username: 'You',
+            displayName: 'You',
+            avatarUrl: null,
+            statusMessage: null,
+          },
+          body: o.body,
+          replyToId: o.replyToId || null,
+          replyTo: null,
+          clientMessageId: o.clientMessageId,
+          editedAt: null,
+          deletedAt: null,
+          deletedBy: null,
+          createdAt: new Date().toISOString(),
+          attachments: [],
+          reactions: [],
+          metadata: o.metadata,
+          status: 'pending' as const,
+        }));
+
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: [...messages, ...pendingOutbox],
+        },
+      };
+    }),
 
   prependOlderMessages: (conversationId, olderMessages) =>
     set((state) => {
@@ -579,4 +616,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
       };
     }),
-}));
+  }),
+  {
+    name: 'pulse-chat-outbox',
+      partialize: (state) => ({ outbox: state.outbox }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.flushOutbox();
+        }
+      },
+    },
+  ),
+);

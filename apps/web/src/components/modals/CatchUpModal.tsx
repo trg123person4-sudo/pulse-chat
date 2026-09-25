@@ -54,8 +54,14 @@ export function CatchUpModal() {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-white tracking-tight">Catch Me Up</h3>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  AI Summary
+                <span
+                  className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+                    data?.source === 'llm'
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                      : 'bg-slate-700/50 text-slate-300 border-slate-600/40'
+                  }`}
+                >
+                  {data?.source === 'llm' ? '✨ Gemini AI' : data ? 'Basic Heuristic' : 'AI Summary'}
                 </span>
               </div>
               <p className="text-xs text-slate-400">

@@ -102,6 +102,7 @@ export interface ToneCheckResultDto {
   label: 'gentle' | 'neutral' | 'harsh';
   warnings: string[];
   suggestion?: string;
+  source: 'llm' | 'heuristic';
 }
 
 export interface CatchUpSummaryDto {
@@ -110,17 +111,20 @@ export interface CatchUpSummaryDto {
   actionItems: string[];
   messageCount: number;
   channelName: string;
+  source: 'llm' | 'heuristic';
 }
 
 export interface SmartRepliesDto {
   replies: string[];
+  source: 'llm' | 'heuristic';
 }
 
 export interface TranslationResultDto {
   originalText: string;
-  translatedText: string;
+  translatedText: string | null;
   targetLanguage: string;
   detectedLanguage?: string;
+  source: 'llm' | 'unavailable';
 }
 
 export interface SavedMessageDto {

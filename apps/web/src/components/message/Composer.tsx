@@ -24,8 +24,16 @@ import { useAuthStore } from '../../stores/auth-store.js';
 import { getSocket } from '../../lib/socket-client.js';
 import { api } from '../../lib/api-client.js';
 import { soundService } from '../../lib/sound-service.js';
+import { cn } from '../../lib/utils.js';
 import { VoiceRecorder } from './VoiceRecorder.js';
-import { APP_CONSTANTS, MessageDto, AttachmentDto, SmartRepliesDto, CustomEmojiDto } from '@realtime-chat/shared';
+import {
+  APP_CONSTANTS,
+  MessageDto,
+  AttachmentDto,
+  SmartRepliesDto,
+  CustomEmojiDto,
+  ToneCheckResultDto,
+} from '@realtime-chat/shared';
 
 interface ComposerProps {
   conversationId: string;
@@ -91,9 +99,11 @@ export function Composer({ conversationId }: ComposerProps) {
   // Next-Gen States
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [smartReplies, setSmartReplies] = useState<string[]>([]);
+  const [smartRepliesSource, setSmartRepliesSource] = useState<'llm' | 'heuristic'>('heuristic');
   const [toneWarning, setToneWarning] = useState<{
     warning: string;
     suggestion?: string;
+    source?: 'llm' | 'heuristic';
   } | null>(null);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -163,12 +173,14 @@ export function Composer({ conversationId }: ComposerProps) {
       .then((res) => {
         if (isMounted && res && res.replies) {
           setSmartReplies(res.replies);
+          setSmartRepliesSource(res.source || 'heuristic');
         }
       })
       .catch(() => {
         // Fallback default quick replies
         if (isMounted) {
           setSmartReplies(['Sounds good! 👍', 'On it right now.', 'Thanks for the update!']);
+          setSmartRepliesSource('heuristic');
         }
       });
 
@@ -234,47 +246,65 @@ export function Composer({ conversationId }: ComposerProps) {
     }
   };
 
-  // Check Tone when typing
-  const evaluateTone = (content: string) => {
-    if (!content || content.length < 12) {
+  // Check Tone when typing (server check with LLM escalation + local heuristic fallback)
+  const evaluateTone = async (content: string) => {
+    if (!content || content.length < 10) {
       setToneWarning(null);
       return;
     }
 
-    const lower = content.toLowerCase();
-    const harshWords = [
-      'stupid',
-      'idiot',
-      'ridiculous',
-      'incompetent',
-      'pathetic',
-      'shut up',
-      'hate this',
-      'you never',
-      'waste of time',
-      'nonsense',
-      'garbage',
-      'horrible work',
-    ];
+    try {
+      const res = await api.post<ToneCheckResultDto>('/ai/tone-check', { text: content });
+      if (res && res.label === 'harsh' && res.warnings?.length > 0) {
+        setToneWarning({
+          warning: res.warnings[0],
+          suggestion: res.suggestion,
+          source: res.source || 'heuristic',
+        });
+        return;
+      } else {
+        setToneWarning(null);
+        return;
+      }
+    } catch {
+      // Local heuristic fallback if server is unreachable
+      const lower = content.toLowerCase();
+      const harshWords = [
+        'stupid',
+        'idiot',
+        'ridiculous',
+        'incompetent',
+        'pathetic',
+        'shut up',
+        'hate this',
+        'you never',
+        'waste of time',
+        'nonsense',
+        'garbage',
+        'horrible work',
+      ];
 
-    const foundHarsh = harshWords.find((w) => lower.includes(w));
-    const uppercaseWords = content.match(/\b[A-Z]{3,}\b/g) || [];
+      const foundHarsh = harshWords.find((w) => lower.includes(w));
+      const uppercaseWords = content.match(/\b[A-Z]{3,}\b/g) || [];
 
-    if (foundHarsh) {
-      setToneWarning({
-        warning: `This message includes "${foundHarsh}", which may read as harsh or confrontational.`,
-        suggestion: content
-          .replace(/stupid|idiot|garbage|incompetent/gi, 'challenging')
-          .replace(/waste of time/gi, 'could be more efficient')
-          .replace(/hate this/gi, 'would prefer another approach'),
-      });
-    } else if (uppercaseWords.length >= 3) {
-      setToneWarning({
-        warning: 'Heavy ALL-CAPS text may be perceived as shouting.',
-        suggestion: content.toLowerCase().replace(/^\w/, (c) => c.toUpperCase()),
-      });
-    } else {
-      setToneWarning(null);
+      if (foundHarsh) {
+        setToneWarning({
+          warning: `This message includes "${foundHarsh}", which may read as harsh or confrontational.`,
+          suggestion: content
+            .replace(/stupid|idiot|garbage|incompetent/gi, 'challenging')
+            .replace(/waste of time/gi, 'could be more efficient')
+            .replace(/hate this/gi, 'would prefer another approach'),
+          source: 'heuristic',
+        });
+      } else if (uppercaseWords.length >= 3) {
+        setToneWarning({
+          warning: 'Heavy ALL-CAPS text may be perceived as shouting.',
+          suggestion: content.toLowerCase().replace(/^\w/, (c) => c.toUpperCase()),
+          source: 'heuristic',
+        });
+      } else {
+        setToneWarning(null);
+      }
     }
   };
 
@@ -751,9 +781,21 @@ export function Composer({ conversationId }: ComposerProps) {
       {/* Contextual Smart Reply Chips */}
       {smartReplies.length > 0 && !text && !isRecordingVoice && (
         <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none animate-in fade-in">
-          <span className="text-[10px] uppercase font-bold text-indigo-400/80 mr-1 flex items-center gap-1">
+          <span
+            className={cn(
+              'text-[10px] uppercase font-bold mr-1 flex items-center gap-1 px-1.5 py-0.5 rounded-full border',
+              smartRepliesSource === 'llm'
+                ? 'text-indigo-300 bg-indigo-950/40 border-indigo-500/30'
+                : 'text-slate-400 bg-slate-900 border-slate-700/60',
+            )}
+            title={
+              smartRepliesSource === 'llm'
+                ? 'Powered by Gemini AI model'
+                : 'Rule-based contextual quick replies'
+            }
+          >
             <Sparkles className="w-3 h-3" />
-            Suggested:
+            {smartRepliesSource === 'llm' ? 'AI Replies' : 'Quick Replies'}
           </span>
           {smartReplies.map((replyText, i) => (
             <button
@@ -954,7 +996,12 @@ export function Composer({ conversationId }: ComposerProps) {
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold text-amber-300">Tone Check: </span>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="font-semibold text-amber-300">Tone Warning:</span>
+                <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {toneWarning.source === 'llm' ? '✨ Gemini AI' : 'Basic Rule'}
+                </span>
+              </div>
               <span>{toneWarning.warning}</span>
               {toneWarning.suggestion && (
                 <div className="mt-1 flex items-center gap-2">

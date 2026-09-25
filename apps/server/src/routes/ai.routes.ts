@@ -48,7 +48,7 @@ aiRouter.post('/tone-check', requireAuth, async (req, res, next) => {
     if (typeof text !== 'string') {
       throw AppError.badRequest('text string is required');
     }
-    const result = aiService.checkTone(text);
+    const result = await aiService.checkTone(text);
     res.json({ ok: true, data: result });
   } catch (err) {
     next(err);

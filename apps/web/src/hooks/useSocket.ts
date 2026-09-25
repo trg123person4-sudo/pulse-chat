@@ -27,6 +27,11 @@ export function useSocket() {
     const socket = getSocket();
     if (!socket) return;
 
+    // Drain offline outbox queue on mount if already connected
+    if (socket.connected) {
+      flushOutbox();
+    }
+
     const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     function onConnect() {

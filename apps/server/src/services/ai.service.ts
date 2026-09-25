@@ -9,7 +9,9 @@ import {
 import { logger } from '../utils/logger.js';
 
 export class AIService {
-  private geminiApiKey: string | null = process.env.GEMINI_API_KEY || null;
+  private get geminiApiKey(): string | null {
+    return process.env.GEMINI_API_KEY || null;
+  }
 
   private async callGemini(prompt: string): Promise<string | null> {
     if (!this.geminiApiKey) return null;
@@ -82,6 +84,7 @@ export class AIService {
         actionItems: [],
         messageCount: 0,
         channelName: conv.name || 'Conversation',
+        source: 'heuristic',
       };
     }
 
@@ -114,6 +117,7 @@ ${conversationTranscript}
             actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : [],
             messageCount: messageList.length,
             channelName: conv.name || 'Conversation',
+            source: 'llm',
           };
         }
       } catch (e) {
@@ -159,6 +163,7 @@ ${conversationTranscript}
       actionItems: actionItems.slice(0, 4),
       messageCount: messageList.length,
       channelName: conv.name || 'Conversation',
+      source: 'heuristic',
     };
   }
 
@@ -171,7 +176,10 @@ ${conversationTranscript}
     });
 
     if (latestMessages.length === 0) {
-      return { replies: ['Hey everyone! 👋', 'Good morning!', 'Checking in.'] };
+      return {
+        replies: ['Hey everyone! 👋', 'Good morning!', 'Checking in.'],
+        source: 'heuristic',
+      };
     }
 
     const lastMsg = latestMessages[0];
@@ -187,7 +195,7 @@ ${conversationTranscript}
           if (match) {
             const parsed = JSON.parse(match[0]);
             if (Array.isArray(parsed.replies) && parsed.replies.length > 0) {
-              return { replies: parsed.replies.slice(0, 3) };
+              return { replies: parsed.replies.slice(0, 3), source: 'llm' };
             }
           }
         } catch {}
@@ -198,110 +206,78 @@ ${conversationTranscript}
     if (/\b(shipped|launched|merged|released|congrats|awesome|great job|done)\b/i.test(text)) {
       return {
         replies: ['Huge congrats! 🎉', 'Amazing work team! 🚀', 'Love to see it! 🔥'],
+        source: 'heuristic',
       };
     }
 
     if (text.endsWith('?') || /\b(can you|could you|what do you think|is it ready|any updates)\b/i.test(text)) {
       return {
         replies: ['Yes, on it! 👍', 'Let me check right now.', 'Will update shortly.'],
+        source: 'heuristic',
       };
     }
 
     if (/\b(thanks|thank you|thx|appreciate)\b/i.test(text)) {
       return {
         replies: ['Anytime! 😊', 'Glad to help!', 'No problem! 👍'],
+        source: 'heuristic',
       };
     }
 
     if (/\b(meet|sync|call|discuss|zoom|calendar)\b/i.test(text)) {
       return {
         replies: ['Sounds good, invite me!', 'I am free now 👍', 'Sent you calendar slots.'],
+        source: 'heuristic',
       };
     }
 
     return {
       replies: ['Sounds like a plan! 👍', 'I will review this.', 'Thanks for the update!'],
+      source: 'heuristic',
     };
   }
 
   async translateText(text: string, targetLanguage: string): Promise<TranslationResultDto> {
     const trimmed = text.trim();
     if (!trimmed) {
-      return { originalText: text, translatedText: text, targetLanguage };
+      return { originalText: text, translatedText: text, targetLanguage, source: 'llm' };
     }
 
-    if (this.geminiApiKey) {
-      const prompt = `Translate the following chat message accurately and naturally into ${targetLanguage}. Maintain tone, emoji, and formatting:
-"${trimmed}"
-
-Return ONLY the translated string without extra explanation.`;
-      const res = await this.callGemini(prompt);
-      if (res && res.trim()) {
-        return {
-          originalText: trimmed,
-          translatedText: res.trim().replace(/^["']|["']$/g, ''),
-          targetLanguage,
-        };
-      }
-    }
-
-    // Local Dictionary & Heuristic Fallback
-    const basicDict: Record<string, Record<string, string>> = {
-      es: {
-        'hello': '¡Hola!',
-        'good morning': '¡Buenos días!',
-        'thank you': '¡Muchas gracias!',
-        'sounds good': '¡Me parece bien!',
-        'congratulations': '¡Felicitaciones!',
-        'we shipped it!': '¡Lo enviamos!',
-        'yes': 'Sí',
-        'no': 'No',
-      },
-      fr: {
-        'hello': 'Bonjour !',
-        'good morning': 'Bonjour !',
-        'thank you': 'Merci beaucoup !',
-        'sounds good': 'Ça marche !',
-        'congratulations': 'Félicitations !',
-        'we shipped it!': 'Nous l\'avons expédié !',
-        'yes': 'Oui',
-        'no': 'Non',
-      },
-      de: {
-        'hello': 'Hallo!',
-        'good morning': 'Guten Morgen!',
-        'thank you': 'Vielen Dank!',
-        'sounds good': 'Klingt gut!',
-        'congratulations': 'Herzlichen Glückwunsch!',
-        'yes': 'Ja',
-        'no': 'Nein',
-      },
-    };
-
-    const targetKey = targetLanguage.toLowerCase().substring(0, 2);
-    const lower = trimmed.toLowerCase();
-    const dictionaryMatch = basicDict[targetKey]?.[lower];
-
-    if (dictionaryMatch) {
+    if (!this.geminiApiKey) {
       return {
         originalText: trimmed,
-        translatedText: dictionaryMatch,
+        translatedText: null,
         targetLanguage,
+        source: 'unavailable',
       };
     }
 
-    // Graceful presentation banner when offline/no API key
+    const prompt = `Translate the following chat message accurately and naturally into ${targetLanguage}. Maintain tone, emoji, and formatting:
+"${trimmed}"
+
+Return ONLY the translated string without extra explanation.`;
+    const res = await this.callGemini(prompt);
+    if (res && res.trim()) {
+      return {
+        originalText: trimmed,
+        translatedText: res.trim().replace(/^["']|["']$/g, ''),
+        targetLanguage,
+        source: 'llm',
+      };
+    }
+
     return {
       originalText: trimmed,
-      translatedText: `[${targetLanguage.toUpperCase()}] ${trimmed}`,
+      translatedText: null,
       targetLanguage,
+      source: 'unavailable',
     };
   }
 
-  checkTone(text: string): ToneCheckResultDto {
+  async checkTone(text: string): Promise<ToneCheckResultDto> {
     const trimmed = text.trim();
     if (!trimmed || trimmed.length < 5) {
-      return { score: 10, label: 'gentle', warnings: [] };
+      return { score: 10, label: 'gentle', warnings: [], source: 'heuristic' };
     }
 
     const warnings: string[] = [];
@@ -340,21 +316,66 @@ Return ONLY the translated string without extra explanation.`;
     }
 
     score = Math.min(100, score);
-    const label: 'gentle' | 'neutral' | 'harsh' =
+    const heuristicLabel: 'gentle' | 'neutral' | 'harsh' =
       score >= 60 ? 'harsh' : score >= 35 ? 'neutral' : 'gentle';
 
-    let suggestion: string | undefined;
-    if (label === 'harsh') {
-      suggestion = trimmed
+    let heuristicSuggestion: string | undefined;
+    if (heuristicLabel === 'harsh') {
+      heuristicSuggestion = trimmed
         .replace(/!+/g, '.')
         .replace(/obviously,?\s*/gi, '')
         .replace(/as i already said,?\s*/gi, 'As mentioned earlier, ')
         .toLowerCase();
       // Capitalize first letter
-      suggestion = suggestion.charAt(0).toUpperCase() + suggestion.slice(1);
+      heuristicSuggestion = heuristicSuggestion.charAt(0).toUpperCase() + heuristicSuggestion.slice(1);
     }
 
-    return { score, label, warnings, suggestion };
+    // Ambiguous cases escalate to Gemini LLM if key is present
+    const isAmbiguous = (score > 20 && score < 60) || (score <= 20 && trimmed.length >= 35);
+
+    if (isAmbiguous && this.geminiApiKey) {
+      const prompt = `Analyze the workplace tone of this chat message: "${trimmed}".
+Evaluate whether the tone is gentle, neutral, or harsh/passive-aggressive.
+Respond with ONLY valid JSON with this exact structure:
+{
+  "score": <number 0-100, where 0 is gentle and 100 is harsh>,
+  "label": "<gentle|neutral|harsh>",
+  "warnings": ["<specific warning if applicable>"],
+  "suggestion": "<rephrased alternative only if harsh, otherwise empty string>"
+}`;
+      const res = await this.callGemini(prompt);
+      if (res) {
+        try {
+          const match = res.match(/\{[\s\S]*\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]);
+            const parsedScore = typeof parsed.score === 'number' ? Math.max(0, Math.min(100, parsed.score)) : score;
+            const parsedLabel = ['gentle', 'neutral', 'harsh'].includes(parsed.label) ? parsed.label : heuristicLabel;
+            const parsedWarnings = Array.isArray(parsed.warnings) ? parsed.warnings : warnings;
+            const parsedSuggestion =
+              parsed.suggestion && typeof parsed.suggestion === 'string' && parsed.suggestion.trim()
+                ? parsed.suggestion.trim()
+                : undefined;
+
+            return {
+              score: parsedScore,
+              label: parsedLabel,
+              warnings: parsedWarnings,
+              suggestion: parsedSuggestion || (parsedLabel === 'harsh' ? heuristicSuggestion : undefined),
+              source: 'llm',
+            };
+          }
+        } catch {}
+      }
+    }
+
+    return {
+      score,
+      label: heuristicLabel,
+      warnings,
+      suggestion: heuristicSuggestion,
+      source: 'heuristic',
+    };
   }
 }
 
