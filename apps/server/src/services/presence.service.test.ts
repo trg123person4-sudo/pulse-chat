@@ -15,7 +15,7 @@ describe('PresenceService', () => {
     });
   });
 
-  it('tracks multi-socket presence: first socket marks online, last socket marks offline', async () => {
+  it('tracks multi-socket presence in-memory: first socket marks online, last socket marks offline', async () => {
     // 1. First socket for user_1 connects
     const connect1 = await presenceService.userConnected('user_1', 'socket_1a');
     expect(connect1.isFirstSocket).toBe(true);
@@ -56,5 +56,38 @@ describe('PresenceService', () => {
   it('reports offline for untracked user', async () => {
     const status = await presenceService.getPresence('unknown_user');
     expect(status).toBe('offline');
+  });
+
+  it('uses redis when available and falls back gracefully on error', async () => {
+    const mockRedis = {
+      scard: vi.fn().mockResolvedValue(0),
+      sadd: vi.fn().mockResolvedValue(1),
+      srem: vi.fn().mockResolvedValue(1),
+      set: vi.fn().mockResolvedValue('OK'),
+      del: vi.fn().mockResolvedValue(1),
+      expire: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue('online'),
+    };
+
+    (presenceService as any).redis = mockRedis;
+
+    const connect = await presenceService.userConnected('user_redis', 'sock_r1');
+    expect(connect.isFirstSocket).toBe(true);
+
+    const status = await presenceService.getPresence('user_redis');
+    expect(status).toBe('online');
+
+    await presenceService.heartbeat('user_redis');
+    expect(mockRedis.expire).toHaveBeenCalled();
+
+    mockRedis.scard.mockResolvedValueOnce(0);
+    const disconnect = await presenceService.userDisconnected('user_redis', 'sock_r1');
+    expect(disconnect.isLastSocket).toBe(true);
+
+    // Test error recovery
+    mockRedis.get.mockRejectedValueOnce(new Error('Redis connection drop'));
+    const fallbackStatus = await presenceService.getPresence('user_redis');
+    expect(fallbackStatus).toBe('offline');
+    expect((presenceService as any).redis).toBeNull();
   });
 });

@@ -33,12 +33,17 @@ export function ThreadPanel() {
     setIsLoading(true);
 
     api
-      .get<MessageDto[]>(
+      .get<any>(
         `/conversations/${activeThreadMessage.conversationId}/threads/${activeThreadMessage.id}`,
       )
-      .then((replies) => {
+      .then((res) => {
         if (isMounted) {
-          setThreadReplies(replies || []);
+          const list = Array.isArray(res)
+            ? res
+            : Array.isArray(res?.replies)
+            ? res.replies
+            : [];
+          setThreadReplies(list);
           setIsLoading(false);
         }
       })
@@ -127,7 +132,10 @@ export function ThreadPanel() {
   };
 
   return (
-    <aside className="w-80 sm:w-96 flex flex-col h-full bg-slate-900/95 border-l border-slate-800 shadow-2xl z-20 shrink-0 select-none animate-in slide-in-from-right duration-200">
+    <aside
+      data-testid="thread-panel"
+      className="w-80 sm:w-96 flex flex-col h-full bg-slate-900/95 border-l border-slate-800 shadow-2xl z-20 shrink-0 select-none animate-in slide-in-from-right duration-200"
+    >
       {/* Header */}
       <div className="h-14 px-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
         <div className="flex items-center gap-2">
@@ -193,7 +201,7 @@ export function ThreadPanel() {
 
         {/* Thread Replies List */}
         {!isLoading &&
-          threadReplies.map((reply) => {
+          (Array.isArray(threadReplies) ? threadReplies : []).map((reply) => {
             const author = reply.sender?.displayName || reply.sender?.username || 'Unknown';
             const color = getUserColor(reply.sender?.username || '');
 

@@ -15,6 +15,7 @@ import {
   PartyPopper,
   Code,
   Bell,
+  Clock,
   Image as ImageIcon,
   Plus,
   Upload,
@@ -57,6 +58,12 @@ const SLASH_COMMANDS = [
     description: 'Schedule a personal reminder: /remind [10m|1h|24h] [message]',
     template: '/remind 15m review the latest PR',
     icon: Bell,
+  },
+  {
+    command: '/schedule',
+    description: 'Schedule a message to post automatically: /schedule [2s|10s|5m|1h] [message]',
+    template: '/schedule 5s Hello from the future!',
+    icon: Clock,
   },
   {
     command: '/giphy',
@@ -561,6 +568,64 @@ export function Composer({ conversationId }: ComposerProps) {
         soundService.playReceive();
       } catch (err: any) {
         setUploadError(err.message || 'Failed to schedule reminder');
+      }
+      return;
+    }
+
+    // Scheduled message slash command: /schedule [2s|10s|5m|1h] [message]
+    if (trimmed.startsWith('/schedule')) {
+      const scheduleRaw = trimmed.replace(/^\/schedule\s*/, '').trim();
+      let delayMs = 10000;
+      let scheduledBody = scheduleRaw;
+
+      const match = scheduleRaw.match(/^(\d+)([smhd])\s+(.+)$/i);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        const unit = match[2].toLowerCase();
+        if (unit === 's') delayMs = val * 1000;
+        else if (unit === 'm') delayMs = val * 60 * 1000;
+        else if (unit === 'h') delayMs = val * 3600 * 1000;
+        else if (unit === 'd') delayMs = val * 86400 * 1000;
+        scheduledBody = match[3];
+      } else {
+        scheduledBody = scheduleRaw || 'Scheduled message';
+      }
+
+      setText('');
+      try {
+        const scheduledFor = new Date(Date.now() + delayMs).toISOString();
+        await api.post('/scheduled-messages', {
+          conversationId,
+          body: scheduledBody,
+          scheduledFor,
+        });
+        const clientMessageId = crypto.randomUUID();
+        addMessage({
+          id: `system_${clientMessageId}`,
+          conversationId,
+          senderId: 'system',
+          sender: {
+            id: 'system',
+            username: 'pulsebot',
+            displayName: 'PulseBot',
+            avatarUrl: null,
+            statusMessage: null,
+          },
+          body: `📅 Message scheduled to post in ${Math.round(delayMs / 1000)}s: "${scheduledBody}"`,
+          replyToId: null,
+          replyTo: null,
+          clientMessageId,
+          editedAt: null,
+          deletedAt: null,
+          deletedBy: null,
+          createdAt: new Date().toISOString(),
+          attachments: [],
+          reactions: [],
+          status: 'sent',
+        });
+        soundService.playReceive();
+      } catch (err: any) {
+        setUploadError(err.message || 'Failed to schedule message');
       }
       return;
     }

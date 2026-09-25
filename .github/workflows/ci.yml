@@ -12,7 +12,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespassword
@@ -70,5 +70,50 @@ jobs:
           JWT_REFRESH_SECRET: c29tZXNlY3JldHJlZnJlc2hrZXl2YWx1ZTEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz=
         run: npm run test
 
+      - name: Run Service Coverage Report
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/chatdb?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: c29tZXNlY3JldGFjY2Vzc2tleXZhbHVlMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM=
+          JWT_REFRESH_SECRET: c29tZXNlY3JldHJlZnJlc2hrZXl2YWx1ZTEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz=
+        run: npm run test:coverage
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/chatdb?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: c29tZXNlY3JldGFjY2Vzc2tleXZhbHVlMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM=
+          JWT_REFRESH_SECRET: c29tZXNlY3JldHJlZnJlc2hrZXl2YWx1ZTEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz=
+        run: npm run test:e2e
+
       - name: Build packages and applications
         run: npm run build
+
+  docker-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and Start Containers
+        run: docker compose up --build -d
+
+      - name: Wait for Services & Health Check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -f http://localhost:4000/healthz; then
+              echo "Server is healthy!"
+              exit 0
+            fi
+            echo "Waiting for server to be healthy... ($i/30)"
+            sleep 2
+          done
+          echo "Health check failed after 60s"
+          docker compose logs server
+          exit 1
+
+      - name: Tear Down
+        if: always()
+        run: docker compose down -v

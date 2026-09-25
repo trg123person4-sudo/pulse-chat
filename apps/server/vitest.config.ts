@@ -8,5 +8,12 @@ export default defineConfig({
     fileParallelism: false,
     pool: 'forks',
     testTimeout: 20000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/services/**/*.ts'],
+      exclude: ['src/services/**/*.test.ts'],
+    },
   },
 });
+

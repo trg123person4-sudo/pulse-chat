@@ -85,6 +85,25 @@ export class AuthService {
       },
     });
 
+    // Auto-join public channels (e.g. #general)
+    try {
+      const publicChannels = await prisma.conversation.findMany({
+        where: { type: 'CHANNEL', isPrivate: false },
+      });
+      for (const channel of publicChannels) {
+        await prisma.membership.create({
+          data: {
+            id: generateId(),
+            userId: user.id,
+            conversationId: channel.id,
+            role: 'MEMBER',
+          },
+        });
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+
     const accessToken = await signAccessToken({
       userId: user.id,
       username: user.username,

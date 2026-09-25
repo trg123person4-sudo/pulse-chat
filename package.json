@@ -13,6 +13,8 @@
     "dev:web": "npm run dev --workspace=@realtime-chat/web",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test:coverage --workspace=@realtime-chat/server",
+    "test:e2e": "npm run test:e2e --workspace=@realtime-chat/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "seed": "npm run seed --workspace=@realtime-chat/server",
     "docker:up": "docker compose up -d",

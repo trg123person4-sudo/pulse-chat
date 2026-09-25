@@ -260,6 +260,7 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
 
           {/* Reply in dedicated thread drawer */}
           <button
+            data-testid="reply-in-thread"
             onClick={() => openThread(message)}
             title="Reply in thread"
             className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded transition-colors"
@@ -606,7 +607,7 @@ export function MessageItem({ message, isGrouped, onRetry, onReactionToggle }: M
           )}
 
         {/* Dedicated Thread Replies Indicator Button */}
-        {message.replyCount && message.replyCount > 0 && !isDeleted && (
+        {Boolean(message.replyCount && message.replyCount > 0 && !isDeleted) && (
           <button
             type="button"
             onClick={() => openThread(message)}

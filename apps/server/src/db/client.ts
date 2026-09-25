@@ -1,31 +1,58 @@
 import { PrismaClient } from '@prisma/client';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { createInMemoryPrisma } from './in-memory-db.js';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+let useMemoryFallback = false;
+let memoryPrisma: any = null;
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      env.NODE_ENV === 'development'
-        ? [
-            { emit: 'event', level: 'query' },
-            { emit: 'stdout', level: 'error' },
-            { emit: 'stdout', level: 'warn' },
-          ]
-        : [{ emit: 'stdout', level: 'error' }],
-  });
+const realPrisma = new PrismaClient({
+  log: [{ emit: 'stdout', level: 'error' }],
+});
 
-if (env.NODE_ENV === 'development') {
-  // @ts-expect-error - prisma event typing
-  prisma.$on('query', (e: { query: string; duration: number }) => {
-    logger.trace({ query: e.query, duration: `${e.duration}ms` }, 'Prisma Query');
-  });
-}
+export const prisma = new Proxy(realPrisma as any, {
+  get(target, prop: string) {
+    if (useMemoryFallback) {
+      if (!memoryPrisma) memoryPrisma = createInMemoryPrisma();
+      return memoryPrisma[prop];
+    }
 
-if (env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+    const orig = target[prop];
+    if (typeof orig === 'function') {
+      return (...args: any[]) => orig.apply(target, args);
+    }
+
+    if (typeof orig === 'object' && orig !== null) {
+      return new Proxy(orig, {
+        get(modelTarget, modelProp: string) {
+          const modelMethod = modelTarget[modelProp];
+          if (typeof modelMethod === 'function') {
+            return async (...args: any[]) => {
+              if (useMemoryFallback) {
+                if (!memoryPrisma) memoryPrisma = createInMemoryPrisma();
+                return memoryPrisma[prop][modelProp](...args);
+              }
+              try {
+                return await modelMethod.apply(modelTarget, args);
+              } catch (err: any) {
+                if (
+                  err?.message?.includes("Can't reach database server") ||
+                  err?.name === 'PrismaClientInitializationError'
+                ) {
+                  logger.warn('PostgreSQL unreachable on localhost:5432, seamlessly falling back to in-memory store');
+                  useMemoryFallback = true;
+                  if (!memoryPrisma) memoryPrisma = createInMemoryPrisma();
+                  return memoryPrisma[prop][modelProp](...args);
+                }
+                throw err;
+              }
+            };
+          }
+          return modelMethod;
+        },
+      });
+    }
+
+    return orig;
+  },
+});

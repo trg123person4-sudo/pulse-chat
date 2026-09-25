@@ -202,16 +202,38 @@ export const useChatStore = create<ChatState>()(
   // Threads
   openThread: (message) => set({ activeThreadMessage: message, threadReplies: [] }),
   closeThread: () => set({ activeThreadMessage: null, threadReplies: [] }),
-  setThreadReplies: (replies) => set({ threadReplies: replies }),
+  setThreadReplies: (replies) =>
+    set((state) => {
+      const optimistic = (state.threadReplies || []).filter((r) => r.id.startsWith('thread_opt_'));
+      const combined = [...replies];
+      for (const opt of optimistic) {
+        if (!combined.some((c) => (opt.clientMessageId && c.clientMessageId === opt.clientMessageId) || c.id === opt.id)) {
+          combined.push(opt);
+        }
+      }
+      return { threadReplies: combined };
+    }),
   addThreadReply: (reply) =>
     set((state) => {
-      // 1. Add to active thread replies if open
-      const currentReplies = state.threadReplies;
-      const alreadyHas = currentReplies.some((r) => r.id === reply.id);
-      const updatedReplies = alreadyHas ? currentReplies : [...currentReplies, reply];
+      // 1. Add to active thread replies if open (replace optimistic if clientMessageId matches)
+      const currentReplies = state.threadReplies || [];
+      const hasExactId = currentReplies.some((r) => r.id === reply.id);
+      const hasClientMatch = reply.clientMessageId && currentReplies.some((r) => r.clientMessageId === reply.clientMessageId);
+
+      let updatedReplies: MessageDto[];
+      if (hasClientMatch) {
+        updatedReplies = currentReplies.map((r) =>
+          r.clientMessageId === reply.clientMessageId ? reply : r,
+        );
+      } else if (hasExactId) {
+        updatedReplies = currentReplies;
+      } else {
+        updatedReplies = [...currentReplies, reply];
+      }
 
       // 2. Update parent message replyCount and lastReplyAt
       const parentId = reply.replyToId;
+      const alreadyHas = hasExactId || hasClientMatch;
       let updatedParent = state.activeThreadMessage;
       if (updatedParent && updatedParent.id === parentId) {
         updatedParent = {
