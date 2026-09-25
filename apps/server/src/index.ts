@@ -1,8 +1,10 @@
 import http from 'http';
 import { createApp } from './app.js';
-import { initSocketServer } from './socket/index.js';
+import { initSocketServer, getIO } from './socket/index.js';
 import { startScheduledMessageWorker } from './workers/scheduled-message.worker.js';
 import { startDisappearingMessageWorker } from './workers/disappearing-message.worker.js';
+import { embeddingWorker } from './workers/embedding.worker.js';
+import { reminderWorker } from './workers/reminder.worker.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 
@@ -13,9 +15,12 @@ async function bootstrap() {
   // Initialize Socket.IO real-time server
   initSocketServer(server);
 
-  // Initialize background workers for scheduled and disappearing messages
+  // Initialize background workers
   const scheduledWorker = startScheduledMessageWorker();
   const disappearingWorker = startDisappearingMessageWorker();
+  reminderWorker.setIoProvider(getIO);
+  reminderWorker.start();
+  embeddingWorker.start();
 
   server.listen(env.PORT, () => {
     logger.info(`🚀 Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
@@ -29,6 +34,8 @@ async function bootstrap() {
       logger.info(`Received ${signal}. Shutting down gracefully...`);
       scheduledWorker.stop();
       disappearingWorker.stop();
+      reminderWorker.stop();
+      embeddingWorker.stop();
       server.close(() => {
         logger.info('HTTP server closed.');
         process.exit(0);

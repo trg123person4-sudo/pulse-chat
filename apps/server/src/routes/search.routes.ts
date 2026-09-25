@@ -7,3 +7,7 @@ export const searchRouter = Router();
 searchRouter.get('/', requireAuth, (req, res, next) =>
   searchController.searchGlobal(req, res, next),
 );
+
+searchRouter.get('/semantic', requireAuth, (req, res, next) =>
+  searchController.searchSemantic(req, res, next),
+);

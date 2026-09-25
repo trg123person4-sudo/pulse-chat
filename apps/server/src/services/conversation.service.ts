@@ -4,6 +4,7 @@ import {
   ConversationDto,
   MembershipDto,
   UserSummaryDto,
+  BanDto,
 } from '@realtime-chat/shared';
 import { prisma } from '../db/client.js';
 import { generateId } from '../utils/ulid.js';
@@ -365,6 +366,13 @@ export class ConversationService {
       throw AppError.forbidden('Cannot join a private conversation without an invitation');
     }
 
+    const ban = await prisma.ban.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+    if (ban) {
+      throw AppError.forbidden('You have been banned from this conversation');
+    }
+
     const existing = await prisma.membership.findUnique({
       where: { userId_conversationId: { userId, conversationId } },
     });
@@ -453,7 +461,9 @@ export class ConversationService {
     conversationId: string,
     operatorUserId: string,
     targetUserId: string,
-  ): Promise<{ success: boolean; conversationId: string; userId: string }> {
+    ban: boolean = false,
+    reason?: string,
+  ): Promise<{ success: boolean; conversationId: string; userId: string; banned?: boolean }> {
     if (operatorUserId === targetUserId) {
       throw AppError.badRequest('Cannot kick yourself; use leave instead');
     }
@@ -489,7 +499,153 @@ export class ConversationService {
       where: { id: targetMembership.id },
     });
 
+    if (ban) {
+      await prisma.ban.upsert({
+        where: {
+          conversationId_userId: { conversationId, userId: targetUserId },
+        },
+        create: {
+          conversationId,
+          userId: targetUserId,
+          bannedById: operatorUserId,
+          reason: reason || null,
+        },
+        update: {
+          bannedById: operatorUserId,
+          reason: reason || null,
+        },
+      });
+      return { success: true, conversationId, userId: targetUserId, banned: true };
+    }
+
+    return { success: true, conversationId, userId: targetUserId, banned: false };
+  }
+
+  async banMember(
+    conversationId: string,
+    operatorUserId: string,
+    targetUserId: string,
+    reason?: string,
+  ): Promise<{ success: boolean; conversationId: string; userId: string }> {
+    if (operatorUserId === targetUserId) {
+      throw AppError.badRequest('Cannot ban yourself');
+    }
+
+    const operatorMembership = await prisma.membership.findUnique({
+      where: { userId_conversationId: { userId: operatorUserId, conversationId } },
+    });
+
+    if (
+      !operatorMembership ||
+      (operatorMembership.role !== 'OWNER' && operatorMembership.role !== 'ADMIN')
+    ) {
+      throw AppError.forbidden('Only channel owners or admins can ban members');
+    }
+
+    const targetMembership = await prisma.membership.findUnique({
+      where: { userId_conversationId: { userId: targetUserId, conversationId } },
+    });
+
+    if (targetMembership) {
+      if (targetMembership.role === 'OWNER') {
+        throw AppError.forbidden('Cannot ban the channel owner');
+      }
+      if (targetMembership.role === 'ADMIN' && operatorMembership.role !== 'OWNER') {
+        throw AppError.forbidden('Only the channel owner can ban an admin');
+      }
+      await prisma.membership.delete({
+        where: { id: targetMembership.id },
+      });
+    }
+
+    await prisma.ban.upsert({
+      where: {
+        conversationId_userId: { conversationId, userId: targetUserId },
+      },
+      create: {
+        conversationId,
+        userId: targetUserId,
+        bannedById: operatorUserId,
+        reason: reason || null,
+      },
+      update: {
+        bannedById: operatorUserId,
+        reason: reason || null,
+      },
+    });
+
     return { success: true, conversationId, userId: targetUserId };
+  }
+
+  async unbanMember(
+    conversationId: string,
+    operatorUserId: string,
+    targetUserId: string,
+  ): Promise<{ success: boolean; conversationId: string; userId: string }> {
+    const operatorMembership = await prisma.membership.findUnique({
+      where: { userId_conversationId: { userId: operatorUserId, conversationId } },
+    });
+
+    if (
+      !operatorMembership ||
+      (operatorMembership.role !== 'OWNER' && operatorMembership.role !== 'ADMIN')
+    ) {
+      throw AppError.forbidden('Only channel owners or admins can unban members');
+    }
+
+    try {
+      await prisma.ban.delete({
+        where: {
+          conversationId_userId: { conversationId, userId: targetUserId },
+        },
+      });
+    } catch {
+      // Ignore if not banned
+    }
+
+    return { success: true, conversationId, userId: targetUserId };
+  }
+
+  async listBans(conversationId: string, operatorUserId: string): Promise<BanDto[]> {
+    const operatorMembership = await prisma.membership.findUnique({
+      where: { userId_conversationId: { userId: operatorUserId, conversationId } },
+    });
+
+    if (
+      !operatorMembership ||
+      (operatorMembership.role !== 'OWNER' && operatorMembership.role !== 'ADMIN')
+    ) {
+      throw AppError.forbidden('Only channel owners or admins can view bans');
+    }
+
+    const bans = await prisma.ban.findMany({
+      where: { conversationId },
+      include: { user: true, bannedBy: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return bans.map((b) => ({
+      id: b.id,
+      conversationId: b.conversationId,
+      userId: b.userId,
+      bannedById: b.bannedById,
+      reason: b.reason,
+      createdAt: b.createdAt.toISOString(),
+      user: {
+        id: b.user.id,
+        username: b.user.username,
+        displayName: b.user.displayName,
+        avatarUrl: b.user.avatarUrl,
+        statusMessage: b.user.statusMessage,
+      },
+      bannedBy: {
+        id: b.bannedBy.id,
+        username: b.bannedBy.username,
+        displayName: b.bannedBy.displayName,
+        avatarUrl: b.bannedBy.avatarUrl,
+        statusMessage: b.bannedBy.statusMessage,
+      },
+    }));
   }
 
   async muteMember(

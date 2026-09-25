@@ -176,3 +176,49 @@ export interface SyncResultDto {
 export type SocketResponse<T = void> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string; details?: unknown } };
+
+export interface CustomEmojiDto {
+  id: string;
+  shortcode: string;
+  imageUrl: string;
+  uploadedById: string;
+  conversationId: string | null;
+  createdAt: string;
+}
+
+export interface DraftDto {
+  conversationId: string;
+  text: string;
+  updatedAt: string;
+}
+
+export interface BanDto {
+  id: string;
+  conversationId: string;
+  userId: string;
+  bannedById: string;
+  reason: string | null;
+  createdAt: string;
+  user?: UserSummaryDto;
+  bannedBy?: UserSummaryDto;
+}
+
+export interface ReminderDto {
+  id: string;
+  userId: string;
+  conversationId: string | null;
+  text: string;
+  dueAt: string;
+  status: 'PENDING' | 'CLAIMED' | 'SENT' | 'CANCELLED';
+  createdAt: string;
+}
+
+export interface SemanticSearchResultDto extends SearchResultDto {
+  similarity?: number;
+}
+
+export interface SemanticSearchResponseDto {
+  results: SemanticSearchResultDto[];
+  source: 'hybrid-semantic' | 'keyword-only';
+  warning?: string;
+}

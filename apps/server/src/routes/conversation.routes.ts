@@ -43,9 +43,21 @@ conversationRouter.get('/:id/search', requireAuth, (req, res, next) =>
   searchController.searchConversation(req, res, next),
 );
 
-// Moderation: Kick member
+// Moderation: Kick / Ban member
 conversationRouter.delete('/:id/members/:userId', requireAuth, (req, res, next) =>
   conversationController.kickMember(req, res, next),
+);
+
+conversationRouter.post('/:id/bans/:userId', requireAuth, (req, res, next) =>
+  conversationController.banMember(req, res, next),
+);
+
+conversationRouter.delete('/:id/bans/:userId', requireAuth, (req, res, next) =>
+  conversationController.unbanMember(req, res, next),
+);
+
+conversationRouter.get('/:id/bans', requireAuth, (req, res, next) =>
+  conversationController.listBans(req, res, next),
 );
 
 // Thread & Pin & Saved endpoints

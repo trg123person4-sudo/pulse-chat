@@ -110,6 +110,14 @@ export class ApiClient {
     });
   }
 
+  put<T>(endpoint: string, body?: unknown, options?: RequestInit) {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   patch<T>(endpoint: string, body?: unknown, options?: RequestInit) {
     return this.request<T>(endpoint, {
       ...options,

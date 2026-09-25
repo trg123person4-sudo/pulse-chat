@@ -25,6 +25,11 @@ model User {
   attachments   Attachment[]
   savedMessages SavedMessage[]
   pollVotes     PollVote[]
+  customEmojis  CustomEmoji[]
+  drafts        Draft[]
+  bans          Ban[]          @relation("BannedUser")
+  issuedBans    Ban[]          @relation("BannedBy")
+  reminders     Reminder[]
 
   @@map("users")
 }
@@ -59,6 +64,9 @@ model Conversation {
   memberships Membership[]
   messages    Message[]
   attachments Attachment[]
+  customEmojis CustomEmoji[]
+  drafts       Draft[]
+  bans         Ban[]
 
   @@map("conversations")
 }
@@ -96,6 +104,7 @@ model Message {
   pinnedAt        DateTime?
   pinnedById      String?
   metadata        String?
+  embedding       Unsupported("vector(768)")?
   createdAt       DateTime     @default(now())
 
   conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -196,5 +205,68 @@ model PollVote {
   @@index([messageId])
   @@index([userId])
   @@map("poll_votes")
+}
+
+model CustomEmoji {
+  id             String        @id @default(uuid())
+  shortcode      String
+  imageUrl       String
+  uploadedById   String
+  conversationId String?
+  createdAt      DateTime      @default(now())
+
+  uploader       User          @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([shortcode, conversationId])
+  @@index([conversationId])
+  @@map("custom_emojis")
+}
+
+model Draft {
+  userId         String
+  conversationId String
+  text           String
+  updatedAt      DateTime     @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, conversationId])
+  @@map("drafts")
+}
+
+model Ban {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  bannedById     String
+  reason         String?
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation("BannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  bannedBy       User         @relation("BannedBy", fields: [bannedById], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+  @@map("bans")
+}
+
+model Reminder {
+  id             String    @id @default(uuid())
+  userId         String
+  conversationId String?
+  text           String
+  dueAt          DateTime
+  status         String    @default("PENDING") // PENDING | CLAIMED | SENT | CANCELLED
+  createdAt      DateTime  @default(now())
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueAt])
+  @@index([userId])
+  @@map("reminders")
 }
 

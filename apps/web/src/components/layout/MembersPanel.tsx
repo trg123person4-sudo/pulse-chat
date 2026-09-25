@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useChatStore } from '../../stores/chat-store.js';
 import { useAuthStore } from '../../stores/auth-store.js';
 import { api } from '../../lib/api-client.js';
 import { Avatar } from '../common/Avatar.js';
+import { BanDto } from '@realtime-chat/shared';
 import {
   X,
   Shield,
@@ -12,11 +13,14 @@ import {
   Volume2,
   VolumeX,
   UserMinus,
+  UserX,
+  Ban,
 } from 'lucide-react';
 
 export function MembersPanel() {
   const [muteMenuMemberId, setMuteMenuMemberId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [bans, setBans] = useState<BanDto[]>([]);
 
   const { user } = useAuthStore();
   const {
@@ -40,6 +44,20 @@ export function MembersPanel() {
   const isOwner = currentMember?.role === 'OWNER';
   const isAdmin = currentMember?.role === 'ADMIN' || isOwner;
 
+  const fetchBans = async () => {
+    if (!isAdmin || !isChannel) return;
+    try {
+      const res = await api.get<BanDto[]>(`/conversations/${conversation.id}/bans`);
+      if (Array.isArray(res)) setBans(res);
+    } catch {
+      // Ignore if not permitted
+    }
+  };
+
+  useEffect(() => {
+    fetchBans();
+  }, [conversation.id, isAdmin, isChannel]);
+
   const handleKick = async (memberId: string, memberName: string) => {
     if (!window.confirm(`Are you sure you want to kick @${memberName} from #${conversation.name}?`)) {
       return;
@@ -51,6 +69,34 @@ export function MembersPanel() {
       removeMemberFromConversation(conversation.id, memberId);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to kick member';
+      setActionError(msg);
+    }
+  };
+
+  const handleKickAndBan = async (memberId: string, memberName: string) => {
+    if (!window.confirm(`Are you sure you want to BAN @${memberName} from #${conversation.name}? They will be blocked from rejoining.`)) {
+      return;
+    }
+
+    try {
+      setActionError(null);
+      await api.delete(`/conversations/${conversation.id}/members/${memberId}?ban=true&reason=Banned+by+admin`);
+      removeMemberFromConversation(conversation.id, memberId);
+      fetchBans();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to ban member';
+      setActionError(msg);
+    }
+  };
+
+  const handleUnban = async (userId: string, username: string) => {
+    if (!window.confirm(`Unban @${username} from #${conversation.name}?`)) return;
+    try {
+      setActionError(null);
+      await api.delete(`/conversations/${conversation.id}/bans/${userId}`);
+      setBans((prev) => prev.filter((b) => b.userId !== userId));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to unban user';
       setActionError(msg);
     }
   };
@@ -197,6 +243,13 @@ export function MembersPanel() {
                         >
                           <UserMinus className="w-3.5 h-3.5" />
                         </button>
+                        <button
+                          onClick={() => handleKickAndBan(m.id, username)}
+                          title="Ban member"
+                          className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-slate-800"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -243,6 +296,40 @@ export function MembersPanel() {
             })}
           </div>
         </div>
+
+        {/* Banned Users Section (Admin/Owner only) */}
+        {isAdmin && isChannel && bans.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1.5">
+              <Ban className="w-3.5 h-3.5" />
+              <span>Banned Users ({bans.length})</span>
+            </h3>
+
+            <div className="space-y-1">
+              {bans.map((b) => {
+                const bUsername = b.user?.username || 'user';
+                const bDisplayName = b.user?.displayName || bUsername;
+                return (
+                  <div
+                    key={b.id}
+                    className="flex items-center justify-between p-2 rounded-xl bg-rose-950/20 border border-rose-900/30 text-xs"
+                  >
+                    <div className="truncate">
+                      <div className="font-medium text-slate-200 truncate">{bDisplayName}</div>
+                      <div className="text-[10px] text-slate-500 truncate">@{bUsername}</div>
+                    </div>
+                    <button
+                      onClick={() => handleUnban(b.userId, bUsername)}
+                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold transition-colors shrink-0 ml-2"
+                    >
+                      Unban
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

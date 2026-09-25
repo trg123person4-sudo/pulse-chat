@@ -14,6 +14,10 @@ import { uploadRouter } from './routes/upload.routes.js';
 import { searchRouter } from './routes/search.routes.js';
 import { aiRouter } from './routes/ai.routes.js';
 import { scheduledMessageRouter } from './routes/scheduled-message.routes.js';
+import { customEmojiRouter } from './routes/custom-emoji.routes.js';
+import { draftRouter } from './routes/draft.routes.js';
+import { reminderRouter } from './routes/reminder.routes.js';
+import { giphyRouter } from './routes/giphy.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -154,6 +158,10 @@ export function createApp(): Express {
   app.use('/api/v1/search', searchRouter);
   app.use('/api/v1/ai', aiRouter);
   app.use('/api/v1/scheduled-messages', scheduledMessageRouter);
+  app.use('/api/v1/custom-emojis', customEmojiRouter);
+  app.use('/api/v1/drafts', draftRouter);
+  app.use('/api/v1/reminders', reminderRouter);
+  app.use('/api/v1/giphy', giphyRouter);
 
   // Direct /api aliases for client and test convenience
   app.use('/api/auth', authLimiter, authRouter);
@@ -162,6 +170,10 @@ export function createApp(): Express {
   app.use('/api/search', searchRouter);
   app.use('/api/ai', aiRouter);
   app.use('/api/scheduled-messages', scheduledMessageRouter);
+  app.use('/api/custom-emojis', customEmojiRouter);
+  app.use('/api/drafts', draftRouter);
+  app.use('/api/reminders', reminderRouter);
+  app.use('/api/giphy', giphyRouter);
 
   // Global Central Error Handler
   app.use(errorHandler);

@@ -14,6 +14,10 @@ import {
   BarChart2,
   PartyPopper,
   Code,
+  Bell,
+  Image as ImageIcon,
+  Plus,
+  Upload,
 } from 'lucide-react';
 import { useChatStore } from '../../stores/chat-store.js';
 import { useAuthStore } from '../../stores/auth-store.js';
@@ -21,7 +25,7 @@ import { getSocket } from '../../lib/socket-client.js';
 import { api } from '../../lib/api-client.js';
 import { soundService } from '../../lib/sound-service.js';
 import { VoiceRecorder } from './VoiceRecorder.js';
-import { APP_CONSTANTS, MessageDto, AttachmentDto, SmartRepliesDto } from '@realtime-chat/shared';
+import { APP_CONSTANTS, MessageDto, AttachmentDto, SmartRepliesDto, CustomEmojiDto } from '@realtime-chat/shared';
 
 interface ComposerProps {
   conversationId: string;
@@ -39,6 +43,18 @@ const SLASH_COMMANDS = [
     description: 'Summarize missed messages in this channel',
     template: '/catchup',
     icon: Sparkles,
+  },
+  {
+    command: '/remind',
+    description: 'Schedule a personal reminder: /remind [10m|1h|24h] [message]',
+    template: '/remind 15m review the latest PR',
+    icon: Bell,
+  },
+  {
+    command: '/giphy',
+    description: 'Search and post an animated GIF: /giphy [query]',
+    template: '/giphy ship it',
+    icon: ImageIcon,
   },
   {
     command: '/celebrate',
@@ -80,11 +96,18 @@ export function Composer({ conversationId }: ComposerProps) {
     suggestion?: string;
   } | null>(null);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [customEmojis, setCustomEmojis] = useState<CustomEmojiDto[]>([]);
+  const [isUploadingEmoji, setIsUploadingEmoji] = useState(false);
+  const [showUploadEmojiModal, setShowUploadEmojiModal] = useState(false);
+  const [newEmojiName, setNewEmojiName] = useState('');
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiFileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toneCheckDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef<number>(0);
 
   const { user } = useAuthStore();
@@ -153,6 +176,63 @@ export function Composer({ conversationId }: ComposerProps) {
       isMounted = false;
     };
   }, [conversationId, messages[conversationId]?.length, user?.id]);
+
+  // Cross-device draft restore on channel switch
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get<{ conversationId: string; text: string }>(`/drafts/${conversationId}`)
+      .then((res) => {
+        if (isMounted && res && typeof res.text === 'string') {
+          setText(res.text);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [conversationId]);
+
+  // Fetch custom emojis when emoji picker opens
+  useEffect(() => {
+    if (showEmojiPicker) {
+      api
+        .get<CustomEmojiDto[]>('/custom-emojis')
+        .then((emojis) => {
+          if (Array.isArray(emojis)) {
+            setCustomEmojis(emojis);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [showEmojiPicker]);
+
+  const handleUploadEmoji = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const file = emojiFileInputRef.current?.files?.[0];
+    const shortcode = newEmojiName.trim().replace(/^:|:$/g, '');
+    if (!file || !shortcode) return;
+
+    setIsUploadingEmoji(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('shortcode', shortcode);
+
+    try {
+      const res = await api.post<CustomEmojiDto>('/custom-emojis', formData);
+      if (res && res.id) {
+        setCustomEmojis((prev) => [...prev, res]);
+        setShowUploadEmojiModal(false);
+        setNewEmojiName('');
+        if (emojiFileInputRef.current) emojiFileInputRef.current.value = '';
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to upload custom emoji');
+    } finally {
+      setIsUploadingEmoji(false);
+    }
+  };
 
   // Check Tone when typing
   const evaluateTone = (content: string) => {
@@ -229,6 +309,16 @@ export function Composer({ conversationId }: ComposerProps) {
     toneCheckDebounceRef.current = setTimeout(() => {
       evaluateTone(val);
     }, 400);
+
+    // Debounced draft autosave
+    if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
+    draftDebounceRef.current = setTimeout(() => {
+      if (val.trim()) {
+        api.put(`/drafts/${conversationId}`, { text: val }).catch(() => {});
+      } else {
+        api.delete(`/drafts/${conversationId}`).catch(() => {});
+      }
+    }, 600);
 
     if (val.trim()) {
       emitTyping(true);
@@ -369,7 +459,7 @@ export function Composer({ conversationId }: ComposerProps) {
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     let trimmed = text.trim();
     if ((!trimmed && pendingAttachments.length === 0) || !user) return;
 
@@ -378,11 +468,96 @@ export function Composer({ conversationId }: ComposerProps) {
     setToneWarning(null);
     setShowSlashMenu(false);
 
+    // Clear draft on send
+    if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
+    api.delete(`/drafts/${conversationId}`).catch(() => {});
+
     // 1. Slash command intercepts
     if (trimmed === '/catchup') {
       setText('');
       setCatchUpOpen(true);
       return;
+    }
+
+    // Schedule reminder slash command: /remind [10m|1h|24h] [message]
+    if (trimmed.startsWith('/remind')) {
+      const remindRaw = trimmed.replace(/^\/remind\s*/, '').trim();
+      let durationMinutes = 10;
+      let reminderText = remindRaw;
+
+      const match = remindRaw.match(/^(\d+)([mhd])\s+(.+)$/i);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        const unit = match[2].toLowerCase();
+        if (unit === 'm') durationMinutes = val;
+        else if (unit === 'h') durationMinutes = val * 60;
+        else if (unit === 'd') durationMinutes = val * 1440;
+        reminderText = match[3];
+      } else {
+        reminderText = remindRaw || 'Reminder';
+      }
+
+      setText('');
+      try {
+        await api.post('/reminders', {
+          text: reminderText,
+          durationMinutes,
+          conversationId,
+        });
+        const clientMessageId = crypto.randomUUID();
+        addMessage({
+          id: `system_${clientMessageId}`,
+          conversationId,
+          senderId: 'system',
+          sender: {
+            id: 'system',
+            username: 'pulsebot',
+            displayName: 'PulseBot',
+            avatarUrl: null,
+            statusMessage: null,
+          },
+          body: `⏰ Reminder set for **${durationMinutes}m** from now: "${reminderText}"`,
+          replyToId: null,
+          replyTo: null,
+          clientMessageId,
+          editedAt: null,
+          deletedAt: null,
+          deletedBy: null,
+          createdAt: new Date().toISOString(),
+          attachments: [],
+          reactions: [],
+          status: 'sent',
+        });
+        soundService.playReceive();
+      } catch (err: any) {
+        setUploadError(err.message || 'Failed to schedule reminder');
+      }
+      return;
+    }
+
+    // Giphy search slash command: /giphy [query]
+    if (trimmed.startsWith('/giphy')) {
+      const query = trimmed.replace(/^\/giphy\s*/, '').trim() || 'celebrate';
+      try {
+        setIsUploading(true);
+        const res = await api.get<{ results: Array<{ id: string; title: string; url: string }> }>(
+          `/giphy/search?q=${encodeURIComponent(query)}`,
+        );
+        const gifUrl = res.results?.[0]?.url;
+        if (gifUrl) {
+          trimmed = `![${query}](${gifUrl})`;
+        } else {
+          setUploadError(`No GIFs found for "${query}"`);
+          setIsUploading(false);
+          return;
+        }
+      } catch (err: any) {
+        setUploadError(err.message || 'Failed to search GIF');
+        setIsUploading(false);
+        return;
+      } finally {
+        setIsUploading(false);
+      }
     }
 
     let messageMetadata: any = undefined;
@@ -632,6 +807,147 @@ export function Composer({ conversationId }: ComposerProps) {
         </div>
       )}
 
+      {/* Emoji Picker Popover */}
+      {showEmojiPicker && (
+        <div className="absolute bottom-full left-16 mb-2 w-72 rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl p-3 z-30 backdrop-blur-md animate-in slide-in-from-bottom-2 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Select Emoji
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowEmojiPicker(false);
+                setShowUploadEmojiModal(true);
+              }}
+              className="text-[10px] flex items-center gap-1 font-semibold text-indigo-400 hover:text-indigo-300"
+            >
+              <Plus className="w-3 h-3" /> Custom
+            </button>
+          </div>
+
+          {/* Standard Emojis */}
+          <div>
+            <div className="text-[9px] uppercase font-semibold text-slate-500 mb-1">Standard</div>
+            <div className="grid grid-cols-6 gap-1 text-base">
+              {['😀', '😂', '😍', '🎉', '🚀', '🔥', '✨', '👏', '👀', '💯', '👍', '❤️', '💡', '✅', '🥳', '😎', '🙏', '🙌'].map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    setText((prev) => (prev ? `${prev} ${emoji}` : emoji));
+                    setShowEmojiPicker(false);
+                    textareaRef.current?.focus();
+                  }}
+                  className="p-1 hover:bg-slate-800 rounded text-center hover:scale-125 transition-transform"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Emojis */}
+          {customEmojis.length > 0 && (
+            <div>
+              <div className="text-[9px] uppercase font-semibold text-slate-500 mb-1">Custom Emojis</div>
+              <div className="grid grid-cols-6 gap-1 max-h-28 overflow-y-auto scrollbar-thin">
+                {customEmojis.map((ce) => (
+                  <button
+                    key={ce.id}
+                    type="button"
+                    onClick={() => {
+                      setText((prev) => (prev ? `${prev} :${ce.shortcode}: ` : `:${ce.shortcode}: `));
+                      setShowEmojiPicker(false);
+                      textareaRef.current?.focus();
+                    }}
+                    title={`:${ce.shortcode}:`}
+                    className="p-1 hover:bg-slate-800 rounded flex items-center justify-center hover:scale-125 transition-transform"
+                  >
+                    <img src={ce.imageUrl} alt={ce.shortcode} className="w-5 h-5 object-contain" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Upload Custom Emoji Modal */}
+      {showUploadEmojiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-white">
+                Upload Custom Emoji
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowUploadEmojiModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadEmoji} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Emoji Name (e.g. party_parrot)
+                </label>
+                <div className="flex items-center rounded-xl bg-slate-950 border border-slate-800 px-3 py-1.5 focus-within:border-indigo-500">
+                  <span className="text-slate-500 text-xs mr-1">:</span>
+                  <input
+                    type="text"
+                    value={newEmojiName}
+                    onChange={(e) => setNewEmojiName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                    placeholder="custom_name"
+                    required
+                    className="w-full bg-transparent text-xs text-white outline-none"
+                  />
+                  <span className="text-slate-500 text-xs ml-1">:</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Image File (PNG, GIF, JPEG)
+                </label>
+                <input
+                  ref={emojiFileInputRef}
+                  type="file"
+                  accept="image/png,image/gif,image/jpeg,image/webp"
+                  required
+                  className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadEmojiModal(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploadingEmoji}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isUploadingEmoji ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  Upload
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Gentle Pre-Send Tone Check Warning Banner */}
       {toneWarning && (
         <div className="mb-2 p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/60 text-amber-200 text-xs flex items-start justify-between gap-2 animate-in fade-in">
@@ -782,12 +1098,13 @@ export function Composer({ conversationId }: ComposerProps) {
 
               <button
                 type="button"
-                onClick={() => {
-                  setText((prev) => (prev ? `${prev} 😊` : '😊'));
-                  textareaRef.current?.focus();
-                }}
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 title="Add emoji"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className={`p-1.5 rounded-lg transition-colors ${
+                  showEmojiPicker
+                    ? 'text-indigo-400 bg-indigo-950/60'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
               >
                 <Smile className="w-4 h-4" />
               </button>

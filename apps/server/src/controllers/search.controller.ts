@@ -37,6 +37,24 @@ export class SearchController {
       next(err);
     }
   }
+
+  async searchSemantic(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) {
+        throw AppError.unauthorized('Authentication required');
+      }
+
+      const q = req.query.q as string;
+      const conversationId = req.query.conversationId as string | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 25;
+
+      const response = await searchService.searchSemantic(userId, q || '', limit, conversationId);
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const searchController = new SearchController();

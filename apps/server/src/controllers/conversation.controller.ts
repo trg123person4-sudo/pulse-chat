@@ -102,19 +102,24 @@ export class ConversationController {
   async kickMember(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw AppError.unauthorized();
+      const ban = req.query.ban === 'true' || req.body?.ban === true;
+      const reason = req.body?.reason || (req.query.reason as string) || undefined;
       const result = await conversationService.kickMember(
         req.params.id,
         req.user.userId,
         req.params.userId,
+        ban,
+        reason,
       );
 
       // Broadcast real-time socket event if IO is active
       try {
         const { getIO } = await import('../socket/index.js');
         const io = getIO();
-        io.to(`conv:${req.params.id}`).emit('conversation:member_kicked', {
+        io.to(`conv:${req.params.id}`).emit(ban ? 'conversation:member_banned' : 'conversation:member_kicked', {
           conversationId: req.params.id,
           userId: req.params.userId,
+          banned: ban,
         });
         io.in(`user:${req.params.userId}`).socketsLeave(`conv:${req.params.id}`);
       } catch {
@@ -122,6 +127,71 @@ export class ConversationController {
       }
 
       res.status(200).json({ ok: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async banMember(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw AppError.unauthorized();
+      const reason = req.body?.reason;
+      const result = await conversationService.banMember(
+        req.params.id,
+        req.user.userId,
+        req.params.userId,
+        reason,
+      );
+
+      try {
+        const { getIO } = await import('../socket/index.js');
+        const io = getIO();
+        io.to(`conv:${req.params.id}`).emit('conversation:member_banned', {
+          conversationId: req.params.id,
+          userId: req.params.userId,
+        });
+        io.in(`user:${req.params.userId}`).socketsLeave(`conv:${req.params.id}`);
+      } catch {
+        // Socket may not be initialized
+      }
+
+      res.status(200).json({ ok: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async unbanMember(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw AppError.unauthorized();
+      const result = await conversationService.unbanMember(
+        req.params.id,
+        req.user.userId,
+        req.params.userId,
+      );
+
+      try {
+        const { getIO } = await import('../socket/index.js');
+        const io = getIO();
+        io.to(`conv:${req.params.id}`).emit('conversation:member_unbanned', {
+          conversationId: req.params.id,
+          userId: req.params.userId,
+        });
+      } catch {
+        // Socket may not be initialized
+      }
+
+      res.status(200).json({ ok: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async listBans(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw AppError.unauthorized();
+      const bans = await conversationService.listBans(req.params.id, req.user.userId);
+      res.status(200).json({ ok: true, data: bans });
     } catch (err) {
       next(err);
     }

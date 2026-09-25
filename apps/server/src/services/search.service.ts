@@ -1,7 +1,8 @@
 import { prisma } from '../db/client.js';
 import { AppError } from '../errors/app-error.js';
-import { SearchResultDto, ConversationType } from '@realtime-chat/shared';
+import { SearchResultDto, ConversationType, SemanticSearchResponseDto, SemanticSearchResultDto } from '@realtime-chat/shared';
 import { conversationService } from './conversation.service.js';
+import { embeddingService } from './embedding.service.js';
 import { logger } from '../utils/logger.js';
 import { Prisma } from '@prisma/client';
 
@@ -46,6 +47,145 @@ export class SearchService {
     }
 
     return this.executeSearch(conversationIds, trimmed, limit);
+  }
+
+  async searchSemantic(
+    userId: string,
+    query: string,
+    limit: number = 25,
+    conversationId?: string,
+  ): Promise<SemanticSearchResponseDto> {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) {
+      throw AppError.badRequest('Search query must be at least 2 characters long');
+    }
+
+    let conversationIds: string[] = [];
+    if (conversationId) {
+      const isMember = await conversationService.isMember(conversationId, userId);
+      if (!isMember) {
+        throw AppError.forbidden('You must be a member of the conversation to search it');
+      }
+      conversationIds = [conversationId];
+    } else {
+      const memberships = await prisma.membership.findMany({
+        where: { userId },
+        select: { conversationId: true },
+      });
+      conversationIds = memberships.map((m) => m.conversationId);
+    }
+
+    if (conversationIds.length === 0) {
+      return { results: [], source: 'keyword-only' };
+    }
+
+    const keywordResults = await this.executeSearch(conversationIds, trimmed, limit * 2);
+
+    if (!embeddingService.isConfigured()) {
+      return {
+        results: keywordResults.slice(0, limit),
+        source: 'keyword-only',
+        warning: 'GEMINI_API_KEY is not configured for semantic embeddings. Results are keyword-matched.',
+      };
+    }
+
+    const queryVector = await embeddingService.generateEmbedding(trimmed);
+    if (!queryVector) {
+      return {
+        results: keywordResults.slice(0, limit),
+        source: 'keyword-only',
+        warning: 'Failed to generate query embedding. Results are keyword-matched.',
+      };
+    }
+
+    let semanticRows: any[] = [];
+    try {
+      const vectorStr = `[${queryVector.join(',')}]`;
+      semanticRows = await prisma.$queryRaw<any[]>`
+        SELECT
+          m.id,
+          m."conversationId",
+          m."senderId",
+          m.body,
+          m."replyToId",
+          m."clientMessageId",
+          m."editedAt",
+          m."deletedAt",
+          m."deletedBy",
+          m."createdAt",
+          1 - (m.embedding <=> ${vectorStr}::vector) as similarity,
+          u.id as "sender_id",
+          u.username as "sender_username",
+          u."displayName" as "sender_displayName",
+          u."avatarUrl" as "sender_avatarUrl",
+          u."statusMessage" as "sender_statusMessage",
+          c.id as "conv_id",
+          c.name as "conv_name",
+          c.type as "conv_type"
+        FROM messages m
+        JOIN users u ON m."senderId" = u.id
+        JOIN conversations c ON m."conversationId" = c.id
+        WHERE m."conversationId" IN (${Prisma.join(conversationIds)})
+          AND m."deletedAt" IS NULL
+          AND m.embedding IS NOT NULL
+        ORDER BY m.embedding <=> ${vectorStr}::vector ASC
+        LIMIT ${limit * 2};
+      `;
+    } catch (err) {
+      logger.warn({ err }, 'Semantic pgvector queryRaw failed, falling back to keyword results');
+      return {
+        results: keywordResults.slice(0, limit),
+        source: 'keyword-only',
+        warning: 'Vector search unavailable. Results are keyword-matched.',
+      };
+    }
+
+    const semanticResults: SemanticSearchResultDto[] = semanticRows.map((r) => {
+      const base = this.formatSearchResult(r);
+      return {
+        ...base,
+        similarity: typeof r.similarity === 'number' ? r.similarity : parseFloat(r.similarity) || 0,
+      };
+    });
+
+    // Merge and re-rank with Reciprocal Rank Fusion (RRF)
+    const RRF_K = 60;
+    const scores = new Map<string, { score: number; item: SemanticSearchResultDto }>();
+
+    keywordResults.forEach((item, rank) => {
+      const id = item.message.id;
+      const current = scores.get(id);
+      const add = 1 / (RRF_K + rank + 1);
+      if (current) {
+        current.score += add;
+      } else {
+        scores.set(id, { score: add, item });
+      }
+    });
+
+    semanticResults.forEach((item, rank) => {
+      const id = item.message.id;
+      const current = scores.get(id);
+      const add = 1 / (RRF_K + rank + 1);
+      if (current) {
+        current.score += add;
+        if (item.similarity !== undefined) {
+          current.item.similarity = item.similarity;
+        }
+      } else {
+        scores.set(id, { score: add, item });
+      }
+    });
+
+    const ranked = Array.from(scores.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((entry) => entry.item);
+
+    return {
+      results: ranked,
+      source: 'hybrid-semantic',
+    };
   }
 
   private async executeSearch(

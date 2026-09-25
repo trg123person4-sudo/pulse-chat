@@ -141,6 +141,9 @@ export interface ServerToClientEvents {
   }) => void;
   'conversation:member_left': (payload: { conversationId: string; userId: string }) => void;
   'conversation:member_kicked': (payload: { conversationId: string; userId: string }) => void;
+  'conversation:member_banned': (payload: { conversationId: string; userId: string; banned?: boolean }) => void;
+  'conversation:member_unbanned': (payload: { conversationId: string; userId: string }) => void;
+  'notification:reminder': (payload: { id: string; text: string; conversationId: string | null; dueAt: string }) => void;
   'message:pinned': (payload: {
     conversationId: string;
     messageId: string;

@@ -176,6 +176,22 @@ export function useSocket() {
       }
     });
 
+    socket.on('conversation:member_banned', ({ conversationId, userId }) => {
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser && userId === currentUser.id) {
+        useChatStore.getState().removeConversation(conversationId);
+      } else {
+        useChatStore.getState().removeMemberFromConversation(conversationId, userId);
+      }
+    });
+
+    socket.on('notification:reminder', ({ text }) => {
+      soundService.playReceive();
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification('⏰ PulseChat Reminder', { body: text });
+      }
+    });
+
     return () => {
       clearInterval(heartbeatInterval);
       for (const timer of typingTimers.values()) {
@@ -196,6 +212,8 @@ export function useSocket() {
       socket.off('presence:updated');
       socket.off('conversation:read_updated');
       socket.off('conversation:member_kicked');
+      socket.off('conversation:member_banned');
+      socket.off('notification:reminder');
     };
   }, [
     isAuthenticated,

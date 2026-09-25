@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Hash, Lock, User as UserIcon, MessageSquare, ArrowRight, X } from 'lucide-react';
+import { Search, Hash, Lock, User as UserIcon, MessageSquare, ArrowRight, X, Sparkles, AlertCircle } from 'lucide-react';
 import { useChatStore } from '../../stores/chat-store.js';
 import { api } from '../../lib/api-client.js';
-import { SearchResultDto } from '@realtime-chat/shared';
+import { SearchResultDto, SemanticSearchResponseDto } from '@realtime-chat/shared';
 import { cn } from '../../lib/utils.js';
 
 interface QuickSwitcherModalProps {
@@ -13,6 +13,9 @@ interface QuickSwitcherModalProps {
 export function QuickSwitcherModal({ isOpen, onClose }: QuickSwitcherModalProps) {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'conversations' | 'messages'>('conversations');
+  const [isSemantic, setIsSemantic] = useState(false);
+  const [searchSource, setSearchSource] = useState<'keyword' | 'hybrid-semantic' | 'keyword-only' | null>(null);
+  const [searchWarning, setSearchWarning] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResultDto[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -24,6 +27,8 @@ export function QuickSwitcherModal({ isOpen, onClose }: QuickSwitcherModalProps)
     if (isOpen) {
       setQuery('');
       setSearchResults([]);
+      setSearchSource(null);
+      setSearchWarning(null);
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
@@ -35,16 +40,35 @@ export function QuickSwitcherModal({ isOpen, onClose }: QuickSwitcherModalProps)
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setSearchResults([]);
+      setSearchSource(null);
+      setSearchWarning(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await api.get<{ results: SearchResultDto[] }>(
-          `/search?q=${encodeURIComponent(trimmed)}&limit=15`,
-        );
-        setSearchResults(res.results || []);
+        if (isSemantic) {
+          const res = await api.get<SemanticSearchResponseDto>(
+            `/search/semantic?q=${encodeURIComponent(trimmed)}&limit=15`,
+          );
+          setSearchResults(
+            (res.results || []).map((r) => ({
+              message: r.message,
+              highlight: r.highlight,
+              conversation: r.conversation,
+            })),
+          );
+          setSearchSource(res.source);
+          setSearchWarning(res.warning || null);
+        } else {
+          const res = await api.get<{ results: SearchResultDto[] }>(
+            `/search?q=${encodeURIComponent(trimmed)}&limit=15`,
+          );
+          setSearchResults(res.results || []);
+          setSearchSource('keyword');
+          setSearchWarning(null);
+        }
         setSelectedIndex(0);
       } catch (err) {
         console.error('Search failed', err);
@@ -54,7 +78,7 @@ export function QuickSwitcherModal({ isOpen, onClose }: QuickSwitcherModalProps)
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, activeTab]);
+  }, [query, activeTab, isSemantic]);
 
   // Filter conversations locally
   const filteredConversations = conversations.filter((c) => {
@@ -116,30 +140,72 @@ export function QuickSwitcherModal({ isOpen, onClose }: QuickSwitcherModalProps)
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-slate-800 bg-slate-950/30 px-3 py-1.5 gap-2">
-          <button
-            onClick={() => setActiveTab('conversations')}
-            className={cn(
-              'px-3 py-1 text-xs font-semibold rounded-lg transition-colors',
-              activeTab === 'conversations'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800',
-            )}
-          >
-            Channels & DMs
-          </button>
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={cn(
-              'px-3 py-1 text-xs font-semibold rounded-lg transition-colors',
-              activeTab === 'messages'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800',
-            )}
-          >
-            Search Messages
-          </button>
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/30 px-3 py-1.5">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('conversations')}
+              className={cn(
+                'px-3 py-1 text-xs font-semibold rounded-lg transition-colors',
+                activeTab === 'conversations'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800',
+              )}
+            >
+              Channels & DMs
+            </button>
+            <button
+              onClick={() => setActiveTab('messages')}
+              className={cn(
+                'px-3 py-1 text-xs font-semibold rounded-lg transition-colors',
+                activeTab === 'messages'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800',
+              )}
+            >
+              Search Messages
+            </button>
+          </div>
+
+          {activeTab === 'messages' && (
+            <button
+              type="button"
+              onClick={() => setIsSemantic(!isSemantic)}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all',
+                isSemantic
+                  ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200'
+                  : 'bg-slate-800/60 border-slate-700/80 text-slate-400 hover:text-white',
+              )}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Semantic (AI)</span>
+            </button>
+          )}
         </div>
+
+        {/* Search Source / Status Banner */}
+        {activeTab === 'messages' && searchSource && (
+          <div className="px-3 py-1 bg-slate-950 border-b border-slate-800/80 flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5">
+              {searchSource === 'hybrid-semantic' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 font-semibold">
+                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                  Hybrid Semantic (pgvector + keyword RRF)
+                </span>
+              ) : searchSource === 'keyword-only' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 font-semibold">
+                  <AlertCircle className="w-3 h-3 text-amber-400" />
+                  Keyword fallback ({searchWarning || 'embeddings unconfigured'})
+                </span>
+              ) : (
+                <span className="text-slate-400">Keyword search</span>
+              )}
+            </div>
+            {searchResults.length > 0 && (
+              <span className="text-slate-500">{searchResults.length} results</span>
+            )}
+          </div>
+        )}
 
         {/* Results List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
