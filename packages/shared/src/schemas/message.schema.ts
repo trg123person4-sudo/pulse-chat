@@ -41,8 +41,20 @@ export const messagePaginationSchema = z.object({
   direction: z.enum(['older', 'newer']).default('older'),
 });
 
+export const scheduleMessageSchema = z.object({
+  conversationId: z.string().min(1, 'Conversation ID is required'),
+  body: z
+    .string()
+    .min(1, 'Message body cannot be empty')
+    .max(APP_CONSTANTS.MESSAGE_MAX_LENGTH, 'Message exceeds 4,000 character limit')
+    .trim(),
+  scheduledFor: z.string().datetime('scheduledFor must be an ISO datetime string'),
+  metadata: z.string().optional().nullable(),
+});
+
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export type EditMessageInput = z.infer<typeof editMessageSchema>;
 export type DeleteMessageInput = z.infer<typeof deleteMessageSchema>;
 export type ToggleReactionInput = z.infer<typeof toggleReactionSchema>;
 export type MessagePaginationInput = z.infer<typeof messagePaginationSchema>;
+export type ScheduleMessageInput = z.infer<typeof scheduleMessageSchema>;

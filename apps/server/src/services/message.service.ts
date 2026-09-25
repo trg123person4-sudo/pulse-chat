@@ -275,6 +275,7 @@ export class MessageService {
   async delete(
     messageId: string,
     userId: string,
+    options?: { isSystem?: boolean; deletedAt?: Date },
   ): Promise<{ conversationId: string; messageId: string; deletedBy: string }> {
     const msg = await prisma.message.findUnique({
       where: { id: messageId },
@@ -285,20 +286,32 @@ export class MessageService {
       throw AppError.notFound('Message not found');
     }
 
-    // Check if user is author OR conversation admin/owner
-    const isAuthor = msg.senderId === userId;
-    if (!isAuthor) {
-      const member = msg.conversation?.memberships?.find((m: any) => m.userId === userId);
-      const isStaff = member && (member.role === 'ADMIN' || member.role === 'OWNER');
-      if (!isStaff) {
-        throw AppError.forbidden('You do not have permission to delete this message');
+    if (msg.deletedAt) {
+      return {
+        conversationId: msg.conversationId,
+        messageId: msg.id,
+        deletedBy: msg.deletedBy || userId,
+      };
+    }
+
+    const isSystem = options?.isSystem || userId === 'system';
+    if (!isSystem) {
+      // Check if user is author OR conversation admin/owner
+      const isAuthor = msg.senderId === userId;
+      if (!isAuthor) {
+        const member = msg.conversation?.memberships?.find((m: any) => m.userId === userId);
+        const isStaff = member && (member.role === 'ADMIN' || member.role === 'OWNER');
+        if (!isStaff) {
+          throw AppError.forbidden('You do not have permission to delete this message');
+        }
       }
     }
 
+    const deleteTimestamp = options?.deletedAt || new Date();
     await prisma.message.update({
       where: { id: messageId },
       data: {
-        deletedAt: new Date(),
+        deletedAt: deleteTimestamp,
         deletedBy: userId,
       },
     });

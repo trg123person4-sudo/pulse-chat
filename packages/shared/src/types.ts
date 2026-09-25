@@ -131,12 +131,24 @@ export interface SavedMessageDto {
   createdAt: string;
 }
 
+export interface ScheduledMessageDto {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  scheduledFor: string;
+  status: 'PENDING' | 'SENT' | 'CANCELLED';
+  metadata?: string | null;
+  createdAt: string;
+}
+
 export interface ConversationDto {
   id: string;
   type: ConversationType;
   name: string | null;
   topic: string | null;
   isPrivate: boolean;
+  disappearingAfterSeconds?: number | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;

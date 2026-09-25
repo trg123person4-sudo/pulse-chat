@@ -13,6 +13,7 @@ import { conversationRouter } from './routes/conversation.routes.js';
 import { uploadRouter } from './routes/upload.routes.js';
 import { searchRouter } from './routes/search.routes.js';
 import { aiRouter } from './routes/ai.routes.js';
+import { scheduledMessageRouter } from './routes/scheduled-message.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -152,6 +153,7 @@ export function createApp(): Express {
   app.use('/api/v1/uploads', uploadLimiter, uploadRouter);
   app.use('/api/v1/search', searchRouter);
   app.use('/api/v1/ai', aiRouter);
+  app.use('/api/v1/scheduled-messages', scheduledMessageRouter);
 
   // Direct /api aliases for client and test convenience
   app.use('/api/auth', authLimiter, authRouter);
@@ -159,6 +161,7 @@ export function createApp(): Express {
   app.use('/api/uploads', uploadLimiter, uploadRouter);
   app.use('/api/search', searchRouter);
   app.use('/api/ai', aiRouter);
+  app.use('/api/scheduled-messages', scheduledMessageRouter);
 
   // Global Central Error Handler
   app.use(errorHandler);

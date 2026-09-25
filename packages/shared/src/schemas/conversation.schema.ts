@@ -16,6 +16,7 @@ export const createConversationSchema = z.object({
     .nullable(),
   isPrivate: z.boolean().default(false),
   memberUserIds: z.array(z.string()).default([]),
+  disappearingAfterSeconds: z.number().int().positive().optional().nullable(),
 });
 
 export const updateConversationSchema = z.object({
@@ -31,6 +32,7 @@ export const updateConversationSchema = z.object({
     .optional()
     .nullable(),
   archived: z.boolean().optional(),
+  disappearingAfterSeconds: z.number().int().positive().optional().nullable(),
 });
 
 export const addMemberSchema = z.object({

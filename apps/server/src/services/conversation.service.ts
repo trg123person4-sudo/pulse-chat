@@ -103,6 +103,7 @@ export class ConversationService {
         name: convName,
         topic: conv.topic,
         isPrivate: conv.isPrivate,
+        disappearingAfterSeconds: conv.disappearingAfterSeconds,
         archivedAt: conv.archivedAt ? conv.archivedAt.toISOString() : null,
         createdAt: conv.createdAt.toISOString(),
         updatedAt: conv.updatedAt.toISOString(),
@@ -164,6 +165,7 @@ export class ConversationService {
           name: otherMember?.user.displayName || otherMember?.user.username || 'Direct Message',
           topic: existing.topic,
           isPrivate: true,
+          disappearingAfterSeconds: existing.disappearingAfterSeconds,
           archivedAt: existing.archivedAt ? existing.archivedAt.toISOString() : null,
           createdAt: existing.createdAt.toISOString(),
           updatedAt: existing.updatedAt.toISOString(),
@@ -177,6 +179,7 @@ export class ConversationService {
           id: convId,
           type: 'DM',
           isPrivate: true,
+          disappearingAfterSeconds: input.disappearingAfterSeconds || null,
           memberships: {
             create: [
               { userId, role: 'MEMBER' },
@@ -196,6 +199,7 @@ export class ConversationService {
         name: otherMember?.user.displayName || otherMember?.user.username || 'Direct Message',
         topic: null,
         isPrivate: true,
+        disappearingAfterSeconds: conv.disappearingAfterSeconds,
         archivedAt: null,
         createdAt: conv.createdAt.toISOString(),
         updatedAt: conv.updatedAt.toISOString(),
@@ -219,6 +223,7 @@ export class ConversationService {
         name: input.name || null,
         topic: input.topic || null,
         isPrivate: input.type === 'GROUP' ? true : input.isPrivate,
+        disappearingAfterSeconds: input.disappearingAfterSeconds || null,
         memberships: {
           create: membersToCreate,
         },
@@ -234,6 +239,7 @@ export class ConversationService {
       name: conv.name,
       topic: conv.topic,
       isPrivate: conv.isPrivate,
+      disappearingAfterSeconds: conv.disappearingAfterSeconds,
       archivedAt: null,
       createdAt: conv.createdAt.toISOString(),
       updatedAt: conv.updatedAt.toISOString(),
@@ -258,6 +264,7 @@ export class ConversationService {
     if (input.name !== undefined) data.name = input.name;
     if (input.topic !== undefined) data.topic = input.topic;
     if (input.archived !== undefined) data.archivedAt = input.archived ? new Date() : null;
+    if (input.disappearingAfterSeconds !== undefined) data.disappearingAfterSeconds = input.disappearingAfterSeconds;
 
     const updated = await prisma.conversation.update({
       where: { id: conversationId },
@@ -273,6 +280,7 @@ export class ConversationService {
       name: updated.name,
       topic: updated.topic,
       isPrivate: updated.isPrivate,
+      disappearingAfterSeconds: updated.disappearingAfterSeconds,
       archivedAt: updated.archivedAt ? updated.archivedAt.toISOString() : null,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
@@ -309,6 +317,7 @@ export class ConversationService {
       name: convName,
       topic: conv.topic,
       isPrivate: conv.isPrivate,
+      disappearingAfterSeconds: conv.disappearingAfterSeconds,
       archivedAt: conv.archivedAt ? conv.archivedAt.toISOString() : null,
       createdAt: conv.createdAt.toISOString(),
       updatedAt: conv.updatedAt.toISOString(),
@@ -335,6 +344,7 @@ export class ConversationService {
       name: c.name,
       topic: c.topic,
       isPrivate: false,
+      disappearingAfterSeconds: c.disappearingAfterSeconds,
       archivedAt: null,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
